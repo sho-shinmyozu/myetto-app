@@ -45,10 +45,10 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  const totalCalories = mealLogs.reduce((s, l) => s + l.totalCalories, 0);
-  const totalProtein = mealLogs.reduce((s, l) => s + l.totalProtein, 0);
-  const totalFat = mealLogs.reduce((s, l) => s + l.totalFat, 0);
-  const totalCarb = mealLogs.reduce((s, l) => s + l.totalCarb, 0);
+  const totalCalories = mealLogs.reduce((s: number, l) => s + l.totalCalories, 0);
+  const totalProtein = mealLogs.reduce((s: number, l) => s + l.totalProtein, 0);
+  const totalFat = mealLogs.reduce((s: number, l) => s + l.totalFat, 0);
+  const totalCarb = mealLogs.reduce((s: number, l) => s + l.totalCarb, 0);
 
   const mealByType = Object.fromEntries(
     mealLogs.map((l) => [l.mealType, l.totalCalories])
