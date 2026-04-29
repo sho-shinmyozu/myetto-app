@@ -3,6 +3,15 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { startOfDay } from "date-fns";
 
+// ✅ Prismaの戻り値型を安全に取得
+type MealLog = {
+  mealType: string;
+  totalCalories: number;
+  totalProtein: number;
+  totalFat: number;
+  totalCarb: number;
+};
+
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id)
@@ -49,8 +58,8 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  // ✅ ここが本当の修正ポイント
-  const logs = mealLogs;
+  // ✅ 型を明示（ここが最重要）
+  const logs: MealLog[] = mealLogs;
 
   const totalCalories = logs.reduce(
     (s, l) => s + l.totalCalories,
