@@ -49,27 +49,26 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  // ✅ ここが修正ポイント①：型キャスト削除
+  // ✅ ここが本当の修正ポイント
   const logs = mealLogs;
 
-  // ✅ ここが修正ポイント②：reduceの型を明示
   const totalCalories = logs.reduce(
-    (s: number, l) => s + l.totalCalories,
+    (s, l) => s + l.totalCalories,
     0
   );
 
   const totalProtein = logs.reduce(
-    (s: number, l) => s + l.totalProtein,
+    (s, l) => s + l.totalProtein,
     0
   );
 
   const totalFat = logs.reduce(
-    (s: number, l) => s + l.totalFat,
+    (s, l) => s + l.totalFat,
     0
   );
 
   const totalCarb = logs.reduce(
-    (s: number, l) => s + l.totalCarb,
+    (s, l) => s + l.totalCarb,
     0
   );
 
