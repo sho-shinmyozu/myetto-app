@@ -2,25 +2,105 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #333333;
+  --pink-50: #fef0f5;
+  --pink-100: #fde0eb;
+  --pink-200: #fbb6d2;
+  --pink-300: #f788b8;
+  --pink-400: #f05a9e;
+  --pink-500: #e83285;
+  --pink-accent: #f9a8d4;
+  --pink-light: #fce7f3;
+  --pink-bg: #fff5f9;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-pink-50: var(--pink-50);
+  --color-pink-100: var(--pink-100);
+  --color-pink-200: var(--pink-200);
+  --color-pink-300: var(--pink-300);
+  --color-pink-400: var(--pink-400);
+  --color-pink-500: var(--pink-500);
+  --color-pink-accent: var(--pink-accent);
+  --color-pink-light: var(--pink-light);
+  --color-pink-bg: var(--pink-bg);
+  --font-sans: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Meiryo", sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
+  background: var(--pink-bg);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  min-height: 100svh;
+  max-width: 430px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #f9a8d4, #f05a9e);
+  color: white;
+  border: none;
+  border-radius: 9999px;
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  width: 100%;
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.card {
+  background: white;
+  border-radius: 1rem;
+  padding: 1rem;
+  box-shadow: 0 2px 8px rgba(249, 168, 212, 0.15);
+}
+
+.input-field {
+  width: 100%;
+  border: 2px solid #fde0eb;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s;
+  background: white;
+}
+
+.input-field:focus {
+  border-color: #f9a8d4;
+}
+
+.tag-button {
+  border: 2px solid #fde0eb;
+  border-radius: 9999px;
+  padding: 0.5rem 1.25rem;
+  background: white;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  color: #666;
+}
+
+.tag-button.selected {
+  border-color: #f05a9e;
+  background: linear-gradient(135deg, #fce7f3, #fde0eb);
+  color: #e83285;
+  font-weight: 600;
 }
