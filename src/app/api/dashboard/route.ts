@@ -3,12 +3,24 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { startOfDay } from "date-fns";
 
+type MealLog = {
+  mealType: string;
+  totalCalories: number;
+  totalProtein: number;
+  totalFat: number;
+  totalCarb: number;
+};
+
 export async function GET(req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.user?.id)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const dateStr = req.nextUrl.searchParams.get("date");
-  const date = dateStr ? startOfDay(new Date(dateStr)) : startOfDay(new Date());
+  const date = dateStr
+    ? startOfDay(new Date(dateStr))
+    : startOfDay(new Date());
+
   const dayEnd = new Date(date);
   dayEnd.setDate(dayEnd.getDate() + 1);
 
@@ -45,13 +57,16 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  const totalCalories = mealLogs.reduce((s: number, l) => s + l.totalCalories, 0);
-  const totalProtein = mealLogs.reduce((s: number, l) => s + l.totalProtein, 0);
-  const totalFat = mealLogs.reduce((s: number, l) => s + l.totalFat, 0);
-  const totalCarb = mealLogs.reduce((s: number, l) => s + l.totalCarb, 0);
+  // ✅ 型を明示してエラー解消
+  const logs = mealLogs as MealLog[];
+
+  const totalCalories = logs.reduce((s, l) => s + l.totalCalories, 0);
+  const totalProtein = logs.reduce((s, l) => s + l.totalProtein, 0);
+  const totalFat = logs.reduce((s, l) => s + l.totalFat, 0);
+  const totalCarb = logs.reduce((s, l) => s + l.totalCarb, 0);
 
   const mealByType = Object.fromEntries(
-    mealLogs.map((l) => [l.mealType, l.totalCalories])
+    logs.map((l) => [l.mealType, l.totalCalories])
   );
 
   return NextResponse.json({
@@ -63,7 +78,10 @@ export async function GET(req: NextRequest) {
       totalFat,
       totalCarb,
       meals: mealByType,
-      remainingCalories: Math.max(0, (goal?.dailyCalorieTarget ?? 2000) - totalCalories),
+      remainingCalories: Math.max(
+        0,
+        (goal?.dailyCalorieTarget ?? 2000) - totalCalories
+      ),
     },
     lastBodyRecord: lastBody,
   });
