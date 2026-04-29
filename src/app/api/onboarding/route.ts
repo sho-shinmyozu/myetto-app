@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getSoloUserId } from "@/lib/solo-user";
 import { calcGoals } from "@/lib/calc/bmr";
 import { z } from "zod";
 
@@ -16,10 +16,7 @@ const onboardingSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "ログインが必要です" }, { status: 401 });
-  }
+  const userId = await getSoloUserId();
 
   const body = await req.json();
   const parsed = onboardingSchema.safeParse(body);
@@ -42,7 +39,7 @@ export async function POST(req: NextRequest) {
 
   await prisma.$transaction([
     prisma.user.update({
-      where: { id: session.user.id },
+      where: { id: userId },
       data: {
         gender: data.gender,
         goalType: data.goalType,
@@ -56,12 +53,12 @@ export async function POST(req: NextRequest) {
       },
     }),
     prisma.userGoal.updateMany({
-      where: { userId: session.user.id, isActive: true },
+      where: { userId, isActive: true },
       data: { isActive: false },
     }),
     prisma.userGoal.create({
       data: {
-        userId: session.user.id,
+        userId,
         dailyCalorieTarget: goals.dailyCalorieTarget,
         breakfastCalories: goals.breakfastCalories,
         lunchCalories: goals.lunchCalories,

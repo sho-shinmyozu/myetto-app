@@ -1,22 +1,12 @@
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 
 const globalForDb = globalThis as unknown as { prisma: PrismaClient | undefined };
 
-function createPrismaClient(): PrismaClient {
-  if (process.env.TURSO_DATABASE_URL) {
-    const { PrismaLibSql } = require("@prisma/adapter-libsql") as typeof import("@prisma/adapter-libsql");
-    return new PrismaClient({
-      adapter: new PrismaLibSql({
-        url: process.env.TURSO_DATABASE_URL,
-        authToken: process.env.TURSO_AUTH_TOKEN ?? "",
-      }),
-    });
-  }
-
-  const { PrismaBetterSqlite3 } = require("@prisma/adapter-better-sqlite3") as typeof import("@prisma/adapter-better-sqlite3");
-  const path = require("path") as typeof import("path");
-  const DB_PATH = path.resolve(process.cwd(), "dev.db");
-  return new PrismaClient({ adapter: new PrismaBetterSqlite3({ url: DB_PATH }) });
+function createPrismaClient() {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  return new PrismaClient({ adapter: new PrismaPg(pool) });
 }
 
 export const prisma = globalForDb.prisma ?? createPrismaClient();

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getSoloUserId } from "@/lib/solo-user";
 import { z } from "zod";
 import { startOfDay } from "date-fns";
 
@@ -53,10 +53,7 @@ function toItemCreate(item: Item, idx: number) {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await getSoloUserId();
 
   const dateStr = req.nextUrl.searchParams.get("date");
   const date = dateStr ? new Date(dateStr) : new Date();
@@ -66,7 +63,7 @@ export async function GET(req: NextRequest) {
 
   const logs = await prisma.mealLog.findMany({
     where: {
-      userId: session.user.id,
+      userId,
       logDate: { gte: dayStart, lt: dayEnd },
     },
     include: { items: { orderBy: { sortOrder: "asc" } } },
@@ -77,10 +74,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await getSoloUserId();
 
   const body = await req.json();
   const parsed = mealSchema.safeParse(body);
@@ -96,13 +90,13 @@ export async function POST(req: NextRequest) {
   const mealLog = await prisma.mealLog.upsert({
     where: {
       userId_mealType_logDate: {
-        userId: session.user.id,
+        userId,
         mealType,
         logDate: logDateObj,
       },
     },
     create: {
-      userId: session.user.id,
+      userId,
       mealType,
       logDate: logDateObj,
       totalCalories: calories,
@@ -123,7 +117,7 @@ export async function POST(req: NextRequest) {
     include: { items: true },
   });
 
-  await updateDailySummary(session.user.id, logDateObj);
+  await updateDailySummary(userId, logDateObj);
 
   return NextResponse.json({ mealLog });
 }

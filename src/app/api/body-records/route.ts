@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getSoloUserId } from "@/lib/solo-user";
 import { z } from "zod";
 import { startOfDay, subDays } from "date-fns";
 
@@ -16,8 +16,7 @@ const bodySchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = await getSoloUserId();
 
   const period = req.nextUrl.searchParams.get("period") ?? "1m";
   const daysMap: Record<string, number> = {
@@ -31,7 +30,7 @@ export async function GET(req: NextRequest) {
 
   const records = await prisma.bodyRecord.findMany({
     where: {
-      userId: session.user.id,
+      userId,
       recordDate: { gte: from },
     },
     orderBy: { recordDate: "asc" },
@@ -41,8 +40,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = await getSoloUserId();
 
   const body = await req.json();
   const parsed = bodySchema.safeParse(body);
@@ -52,15 +50,14 @@ export async function POST(req: NextRequest) {
   const date = startOfDay(new Date(recordDate));
 
   const record = await prisma.bodyRecord.upsert({
-    where: { userId_recordDate: { userId: session.user.id, recordDate: date } },
-    create: { userId: session.user.id, recordDate: date, ...rest },
+    where: { userId_recordDate: { userId, recordDate: date } },
+    create: { userId, recordDate: date, ...rest },
     update: { ...rest },
   });
 
-  // 体重記録があれば user.weightKg も更新
   if (rest.weightKg) {
     await prisma.user.update({
-      where: { id: session.user.id },
+      where: { id: userId },
       data: { weightKg: rest.weightKg },
     });
   }

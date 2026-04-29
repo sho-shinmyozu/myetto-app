@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { signOut } from "next-auth/react";
 import Image from "next/image";
 
 type Props = {
@@ -81,13 +80,7 @@ export default function SideMenu({ open, onClose }: Props) {
           <span className="text-lg">📋</span>
           <span>カラダ記録</span>
         </button>
-        <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-400 hover:bg-gray-50"
-        >
-          <span className="text-lg">🚪</span>
-          <span>ログアウト</span>
-        </button>
+
       </div>
     </aside>
   );

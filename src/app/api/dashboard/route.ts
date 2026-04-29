@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getSoloUserId } from "@/lib/solo-user";
 import { startOfDay } from "date-fns";
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await getSoloUserId();
 
   const dateStr = req.nextUrl.searchParams.get("date");
   const date = dateStr ? startOfDay(new Date(dateStr)) : startOfDay(new Date());
@@ -16,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   const [user, goal, mealLogs, lastBody] = await Promise.all([
     prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
       select: {
         nickname: true,
         weightKg: true,
@@ -25,11 +22,11 @@ export async function GET(req: NextRequest) {
       },
     }),
     prisma.userGoal.findFirst({
-      where: { userId: session.user.id, isActive: true },
+      where: { userId, isActive: true },
     }),
     prisma.mealLog.findMany({
       where: {
-        userId: session.user.id,
+        userId,
         logDate: { gte: date, lt: dayEnd },
       },
       select: {
@@ -41,7 +38,7 @@ export async function GET(req: NextRequest) {
       },
     }),
     prisma.bodyRecord.findFirst({
-      where: { userId: session.user.id },
+      where: { userId },
       orderBy: { recordDate: "desc" },
       select: { weightKg: true, recordDate: true },
     }),
