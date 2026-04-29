@@ -3,14 +3,6 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { startOfDay } from "date-fns";
 
-type MealLog = {
-  mealType: string;
-  totalCalories: number;
-  totalProtein: number;
-  totalFat: number;
-  totalCarb: number;
-};
-
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id)
@@ -57,13 +49,29 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  // ✅ 型を明示してエラー解消
-  const logs = mealLogs as MealLog[];
+  // ✅ ここが修正ポイント①：型キャスト削除
+  const logs = mealLogs;
 
-  const totalCalories = logs.reduce((s, l) => s + l.totalCalories, 0);
-  const totalProtein = logs.reduce((s, l) => s + l.totalProtein, 0);
-  const totalFat = logs.reduce((s, l) => s + l.totalFat, 0);
-  const totalCarb = logs.reduce((s, l) => s + l.totalCarb, 0);
+  // ✅ ここが修正ポイント②：reduceの型を明示
+  const totalCalories = logs.reduce(
+    (s: number, l) => s + l.totalCalories,
+    0
+  );
+
+  const totalProtein = logs.reduce(
+    (s: number, l) => s + l.totalProtein,
+    0
+  );
+
+  const totalFat = logs.reduce(
+    (s: number, l) => s + l.totalFat,
+    0
+  );
+
+  const totalCarb = logs.reduce(
+    (s: number, l) => s + l.totalCarb,
+    0
+  );
 
   const mealByType = Object.fromEntries(
     logs.map((l) => [l.mealType, l.totalCalories])
