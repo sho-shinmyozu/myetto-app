@@ -3,25 +3,14 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { startOfDay } from "date-fns";
 
-// ✅ Prismaの戻り値型を安全に取得
-type MealLog = {
-  mealType: string;
-  totalCalories: number;
-  totalProtein: number;
-  totalFat: number;
-  totalCarb: number;
-};
-
 export async function GET(req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.id)
+  if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const dateStr = req.nextUrl.searchParams.get("date");
-  const date = dateStr
-    ? startOfDay(new Date(dateStr))
-    : startOfDay(new Date());
-
+  const date = dateStr ? startOfDay(new Date(dateStr)) : startOfDay(new Date());
   const dayEnd = new Date(date);
   dayEnd.setDate(dayEnd.getDate() + 1);
 
@@ -58,32 +47,19 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  // ✅ 型を明示（ここが最重要）
-  const logs: MealLog[] = mealLogs;
+  let totalCalories = 0;
+  let totalProtein = 0;
+  let totalFat = 0;
+  let totalCarb = 0;
+  const mealByType: Record<string, number> = {};
 
-  const totalCalories = logs.reduce(
-    (s, l) => s + l.totalCalories,
-    0
-  );
-
-  const totalProtein = logs.reduce(
-    (s, l) => s + l.totalProtein,
-    0
-  );
-
-  const totalFat = logs.reduce(
-    (s, l) => s + l.totalFat,
-    0
-  );
-
-  const totalCarb = logs.reduce(
-    (s, l) => s + l.totalCarb,
-    0
-  );
-
-  const mealByType = Object.fromEntries(
-    logs.map((l) => [l.mealType, l.totalCalories])
-  );
+  for (const log of mealLogs) {
+    totalCalories += log.totalCalories;
+    totalProtein += log.totalProtein;
+    totalFat += log.totalFat;
+    totalCarb += log.totalCarb;
+    mealByType[log.mealType] = log.totalCalories;
+  }
 
   return NextResponse.json({
     user,
@@ -94,10 +70,7 @@ export async function GET(req: NextRequest) {
       totalFat,
       totalCarb,
       meals: mealByType,
-      remainingCalories: Math.max(
-        0,
-        (goal?.dailyCalorieTarget ?? 2000) - totalCalories
-      ),
+      remainingCalories: Math.max(0, (goal?.dailyCalorieTarget ?? 2000) - totalCalories),
     },
     lastBodyRecord: lastBody,
   });

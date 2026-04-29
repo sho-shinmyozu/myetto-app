@@ -22,9 +22,41 @@ const mealSchema = z.object({
   notes: z.string().optional(),
 });
 
+type Item = z.infer<typeof itemSchema>;
+
+function sumItems(items: Item[]) {
+  let calories = 0;
+  let protein = 0;
+  let fat = 0;
+  let carb = 0;
+  for (const item of items) {
+    calories += item.calories;
+    protein += item.proteinG ?? 0;
+    fat += item.fatG ?? 0;
+    carb += item.carbG ?? 0;
+  }
+  return { calories, protein, fat, carb };
+}
+
+function toItemCreate(item: Item, idx: number) {
+  return {
+    foodId: item.foodId,
+    foodType: item.foodType,
+    foodName: item.foodName,
+    quantityG: item.quantityG,
+    calories: item.calories,
+    proteinG: item.proteinG ?? null,
+    fatG: item.fatG ?? null,
+    carbG: item.carbG ?? null,
+    sortOrder: idx,
+  };
+}
+
 export async function GET(req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const dateStr = req.nextUrl.searchParams.get("date");
   const date = dateStr ? new Date(dateStr) : new Date();
@@ -46,19 +78,20 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const body = await req.json();
   const parsed = mealSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  }
 
   const { mealType, logDate, items, notes } = parsed.data;
   const logDateObj = startOfDay(new Date(logDate));
-
-  const totalCalories = items.reduce((s, i) => s + i.calories, 0);
-  const totalProtein = items.reduce((s, i) => s + (i.proteinG ?? 0), 0);
-  const totalFat = items.reduce((s, i) => s + (i.fatG ?? 0), 0);
-  const totalCarb = items.reduce((s, i) => s + (i.carbG ?? 0), 0);
+  const { calories, protein, fat, carb } = sumItems(items);
+  const itemCreate = items.map(toItemCreate);
 
   const mealLog = await prisma.mealLog.upsert({
     where: {
@@ -72,50 +105,24 @@ export async function POST(req: NextRequest) {
       userId: session.user.id,
       mealType,
       logDate: logDateObj,
-      totalCalories,
-      totalProtein,
-      totalFat,
-      totalCarb,
+      totalCalories: calories,
+      totalProtein: protein,
+      totalFat: fat,
+      totalCarb: carb,
       notes,
-      items: {
-        create: items.map((item, idx) => ({
-          foodId: item.foodId,
-          foodType: item.foodType,
-          foodName: item.foodName,
-          quantityG: item.quantityG,
-          calories: item.calories,
-          proteinG: item.proteinG ?? null,
-          fatG: item.fatG ?? null,
-          carbG: item.carbG ?? null,
-          sortOrder: idx,
-        })),
-      },
+      items: { create: itemCreate },
     },
     update: {
-      totalCalories,
-      totalProtein,
-      totalFat,
-      totalCarb,
+      totalCalories: calories,
+      totalProtein: protein,
+      totalFat: fat,
+      totalCarb: carb,
       notes,
-      items: {
-        deleteMany: {},
-        create: items.map((item, idx) => ({
-          foodId: item.foodId,
-          foodType: item.foodType,
-          foodName: item.foodName,
-          quantityG: item.quantityG,
-          calories: item.calories,
-          proteinG: item.proteinG ?? null,
-          fatG: item.fatG ?? null,
-          carbG: item.carbG ?? null,
-          sortOrder: idx,
-        })),
-      },
+      items: { deleteMany: {}, create: itemCreate },
     },
     include: { items: true },
   });
 
-  // daily_summary 更新
   await updateDailySummary(session.user.id, logDateObj);
 
   return NextResponse.json({ mealLog });
@@ -130,7 +137,10 @@ async function updateDailySummary(userId: string, date: Date) {
     select: { totalCalories: true },
   });
 
-  const totalCalories = logs.reduce((s, l) => s + l.totalCalories, 0);
+  let totalCalories = 0;
+  for (const log of logs) {
+    totalCalories += log.totalCalories;
+  }
 
   const goal = await prisma.userGoal.findFirst({
     where: { userId, isActive: true },
