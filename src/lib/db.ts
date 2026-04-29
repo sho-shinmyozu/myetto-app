@@ -12,7 +12,7 @@ const globalForDb = globalThis as unknown as {
 
 function createPrismaClient() {
   const adapter = new PrismaBetterSqlite3({ url: DB_PATH });
-  return new PrismaClient({ adapter } as ConstructorParameters<typeof PrismaClient>[0]);
+  return new PrismaClient({ adapter });
 }
 
 export const prisma = globalForDb.prisma ?? createPrismaClient();
