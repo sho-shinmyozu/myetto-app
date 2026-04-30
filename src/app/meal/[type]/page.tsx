@@ -433,13 +433,15 @@ function MealEntryContent() {
             {totalCalories.toLocaleString()} kcal
           </span>
         </div>
-        <button
-          className="btn-primary w-full"
-          onClick={handleSave}
-          disabled={saving}
-        >
-          {saving ? "保存中..." : hasExisting ? "更新する ✓" : "完了 ✓"}
-        </button>
+        <div className="flex justify-end">
+          <button
+            className="btn-primary px-8"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? "保存中..." : hasExisting ? "更新する ✓" : "完了 ✓"}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -161,18 +161,6 @@ export default function ProfilePage() {
           </button>
         </div>
 
-        {/* Read-only: weight */}
-        <div className="card">
-          <h2 className="text-sm font-semibold text-gray-500 mb-2">現在の体重</h2>
-          <InfoRow
-            label="体重"
-            value={data?.weightKg != null ? `${data.weightKg} kg` : "---"}
-          />
-          {data?.targetWeightKg != null && (
-            <InfoRow label="目標体重" value={`${data.targetWeightKg} kg`} />
-          )}
-        </div>
-
         {/* Basic Info */}
         <div className="card">
           <div className="flex items-center justify-between mb-3">
@@ -195,6 +183,10 @@ export default function ProfilePage() {
               <InfoRow
                 label="身長"
                 value={data?.heightCm != null ? `${data.heightCm} cm` : "---"}
+              />
+              <InfoRow
+                label="現在の体重"
+                value={data?.weightKg != null ? `${data.weightKg} kg` : "---"}
               />
             </>
           ) : (

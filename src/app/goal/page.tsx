@@ -202,21 +202,6 @@ export default function GoalPage() {
           )}
         </div>
 
-        {/* ── カロリー目標 ── */}
-        {g && (
-          <div className="card">
-            <h2 className="text-sm font-semibold text-gray-500 mb-3">カロリー目標</h2>
-            <InfoRow
-              label="1日の目標"
-              value={`${g.dailyCalorieTarget.toLocaleString()} kcal`}
-            />
-            <InfoRow label="朝食" value={`${g.breakfastCalories} kcal`} />
-            <InfoRow label="昼食" value={`${g.lunchCalories} kcal`} />
-            <InfoRow label="夕食" value={`${g.dinnerCalories} kcal`} />
-            <InfoRow label="間食" value={`${g.snackCalories} kcal`} />
-          </div>
-        )}
-
         {/* CTA */}
         <button
           onClick={() => router.push("/goal/edit")}
