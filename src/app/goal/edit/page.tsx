@@ -13,7 +13,6 @@ type UserData = {
   targetWeightKg: number | null;
   paceType: string | null;
   approachType: string | null;
-  onboardingDone: boolean;
 };
 
 type EditForm = {
@@ -23,22 +22,12 @@ type EditForm = {
   approachType: "diet_only" | "diet_exercise" | "exercise_only" | "";
 };
 
-const GENDER_LABELS: Record<string, string> = { female: "女性", male: "男性" };
-
-function ReadOnlyRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between items-center py-2">
-      <span className="text-sm text-gray-400">{label}</span>
-      <span className="text-sm text-gray-500">{value}</span>
-    </div>
-  );
-}
-
 export default function GoalEditPage() {
   const router = useRouter();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
   const [form, setForm] = useState<EditForm>({
     goalType: "",
@@ -72,6 +61,7 @@ export default function GoalEditPage() {
   async function handleSave() {
     if (!userData || !canSave) return;
     setSaving(true);
+    setError("");
 
     try {
       const res = await fetch("/api/onboarding", {
@@ -91,7 +81,13 @@ export default function GoalEditPage() {
 
       if (res.ok) {
         router.push("/goal");
+      } else {
+        let json: { error?: string } | null = null;
+        try { json = await res.json(); } catch { /* ignore */ }
+        setError(json?.error ?? "更新に失敗しました");
       }
+    } catch {
+      setError("通信エラーが発生しました");
     } finally {
       setSaving(false);
     }
@@ -104,14 +100,6 @@ export default function GoalEditPage() {
       </div>
     );
   }
-
-  const birthDateDisplay = userData?.birthDate
-    ? new Date(userData.birthDate).toLocaleDateString("ja-JP", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })
-    : "---";
 
   return (
     <div className="flex flex-col min-h-svh bg-gray-50">
@@ -133,33 +121,13 @@ export default function GoalEditPage() {
       </header>
 
       <main className="flex-1 px-4 py-4 space-y-4 pb-8">
-        {/* Read-only personal info */}
-        <div className="card border border-gray-100 bg-gray-50">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-            基本情報（変更不可）
-          </p>
-          <ReadOnlyRow
-            label="性別"
-            value={userData?.gender ? (GENDER_LABELS[userData.gender] ?? "---") : "---"}
-          />
-          <ReadOnlyRow label="生年月日" value={birthDateDisplay} />
-          <ReadOnlyRow
-            label="身長"
-            value={userData?.heightCm != null ? `${userData.heightCm} cm` : "---"}
-          />
-          <ReadOnlyRow
-            label="体重"
-            value={userData?.weightKg != null ? `${userData.weightKg} kg` : "---"}
-          />
-        </div>
-
         {/* goalType */}
         <div className="card">
           <p className="text-sm font-semibold text-gray-600 mb-3">目的</p>
           <div className="flex flex-col gap-2">
             {[
-              { val: "diet", label: "🍎 ダイエット", desc: "体重を減らしたい" },
-              { val: "health", label: "💪 健康管理", desc: "健康的な体を維持したい" },
+              { val: "diet",   label: "🍎 ダイエット",        desc: "体重を減らしたい" },
+              { val: "health", label: "💪 健康管理",           desc: "健康的な体を維持したい" },
               { val: "muscle", label: "🏋️ 筋トレ・ボディメイク", desc: "筋肉をつけたい" },
             ].map((opt) => (
               <button
@@ -205,7 +173,7 @@ export default function GoalEditPage() {
           <div className="flex flex-col gap-2">
             {[
               { val: "soft", label: "🐢 ソフト", desc: "月 0.5kg ペース（無理なく続ける）", badge: "おすすめ" },
-              { val: "hard", label: "🔥 ハード", desc: "月 1.0kg ペース（しっかり絞る）", badge: null },
+              { val: "hard", label: "🔥 ハード", desc: "月 1.0kg ペース（しっかり絞る）",   badge: null },
             ].map((opt) => (
               <button
                 key={opt.val}
@@ -231,9 +199,9 @@ export default function GoalEditPage() {
           <p className="text-sm font-semibold text-gray-600 mb-3">減量アプローチ</p>
           <div className="flex flex-col gap-2">
             {[
-              { val: "diet_only", label: "🥗 食事中心", desc: "食事管理でコントロール" },
+              { val: "diet_only",     label: "🥗 食事中心",      desc: "食事管理でコントロール" },
               { val: "diet_exercise", label: "🥗+🏃 食事と運動", desc: "バランスよく取り組む（推奨）" },
-              { val: "exercise_only", label: "🏃 運動中心", desc: "運動量でカバーする" },
+              { val: "exercise_only", label: "🏃 運動中心",       desc: "運動量でカバーする" },
             ].map((opt) => (
               <button
                 key={opt.val}
@@ -249,7 +217,8 @@ export default function GoalEditPage() {
           </div>
         </div>
 
-        {/* Save */}
+        {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+
         <button
           className="btn-primary w-full"
           onClick={handleSave}

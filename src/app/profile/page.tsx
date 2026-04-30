@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { signOut } from "next-auth/react";
 import Image from "next/image";
 import { format } from "date-fns";
@@ -16,6 +16,12 @@ type ProfileData = {
   targetWeightKg: number | null;
 };
 
+type EditForm = {
+  gender: "male" | "female" | "";
+  birthDate: string;
+  heightCm: string;
+};
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between items-center py-3 border-b border-pink-50 last:border-none">
@@ -29,19 +35,66 @@ export default function ProfilePage() {
   const [data, setData] = useState<ProfileData | null>(null);
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [saveOk, setSaveOk] = useState(false);
+  const [form, setForm] = useState<EditForm>({ gender: "", birthDate: "", heightCm: "" });
 
-  useEffect(() => {
+  const fetchProfile = useCallback(() => {
     fetch("/api/profile")
       .then((r) => r.json())
-      .then((d) => setData(d.user));
+      .then((d) => {
+        const u: ProfileData = d.user;
+        setData(u);
+        setForm({
+          gender: (u?.gender as EditForm["gender"]) ?? "",
+          birthDate: u?.birthDate ? u.birthDate.split("T")[0] : "",
+          heightCm: u?.heightCm?.toString() ?? "",
+        });
+      });
   }, []);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
 
   async function handleLogout() {
     setLoggingOut(true);
     await signOut({ callbackUrl: "/login" });
   }
 
-  const genderLabel = data?.gender === "female" ? "女性" : data?.gender === "male" ? "男性" : "---";
+  async function handleSave() {
+    setSaving(true);
+    setSaveError("");
+    setSaveOk(false);
+
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(form.gender && { gender: form.gender }),
+          ...(form.birthDate && { birthDate: form.birthDate }),
+          ...(form.heightCm && { heightCm: parseFloat(form.heightCm) }),
+        }),
+      });
+
+      let json: { user?: ProfileData; error?: string } | null = null;
+      try { json = await res.json(); } catch { /* ignore */ }
+
+      if (!res.ok) {
+        setSaveError(json?.error ?? "保存に失敗しました");
+      } else if (json?.user) {
+        setData(json.user);
+        setSaveOk(true);
+        setTimeout(() => setSaveOk(false), 2000);
+      }
+    } catch {
+      setSaveError("通信エラーが発生しました");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const birthDateLabel = data?.birthDate
     ? format(new Date(data.birthDate), "yyyy年M月d日", { locale: ja })
@@ -92,30 +145,90 @@ export default function ProfilePage() {
           </button>
         </div>
 
-        {/* Personal Info */}
+        {/* Read-only: weight */}
         <div className="card">
-          <h2 className="text-sm font-semibold text-gray-500 mb-3">基本情報</h2>
-          <InfoRow label="性別" value={genderLabel} />
-          <InfoRow label="生年月日" value={birthDateLabel} />
-          <InfoRow
-            label="身長"
-            value={data?.heightCm != null ? `${data.heightCm} cm` : "---"}
-          />
+          <h2 className="text-sm font-semibold text-gray-500 mb-2">現在の体重</h2>
           <InfoRow
             label="体重"
             value={data?.weightKg != null ? `${data.weightKg} kg` : "---"}
           />
+          {data?.targetWeightKg != null && (
+            <InfoRow label="目標体重" value={`${data.targetWeightKg} kg`} />
+          )}
         </div>
 
-        {/* Goal Weight */}
-        {data?.targetWeightKg != null && (
-          <div className="card flex items-center justify-between">
-            <span className="text-sm text-gray-500">目標体重</span>
-            <span className="text-lg font-bold text-pink-500">
-              {data.targetWeightKg} kg
-            </span>
+        {/* Editable fields */}
+        <div className="card">
+          <h2 className="text-sm font-semibold text-gray-500 mb-4">基本情報の編集</h2>
+
+          {/* Gender */}
+          <div className="mb-4">
+            <p className="text-sm font-medium text-gray-600 mb-2">性別</p>
+            <div className="flex gap-3">
+              {(["female", "male"] as const).map((g) => (
+                <button
+                  key={g}
+                  className={`tag-button flex-1 py-2.5 text-sm ${form.gender === g ? "selected" : ""}`}
+                  onClick={() => setForm({ ...form, gender: g })}
+                >
+                  {g === "female" ? "👩 女性" : "👨 男性"}
+                </button>
+              ))}
+            </div>
           </div>
-        )}
+
+          {/* Birth Date */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-600 mb-1">
+              生年月日
+            </label>
+            <input
+              type="date"
+              className="input-field"
+              value={form.birthDate}
+              max={new Date().toISOString().split("T")[0]}
+              onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
+            />
+            {data?.birthDate && (
+              <p className="text-xs text-gray-400 mt-1">現在: {birthDateLabel}</p>
+            )}
+          </div>
+
+          {/* Height */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-600 mb-1">
+              身長 (cm)
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                className="input-field flex-1"
+                value={form.heightCm}
+                onChange={(e) => setForm({ ...form, heightCm: e.target.value })}
+                placeholder="160"
+                min="100"
+                max="250"
+                step="0.1"
+              />
+              <span className="text-sm text-gray-500 flex-shrink-0">cm</span>
+            </div>
+          </div>
+
+          {saveError && (
+            <p className="text-red-500 text-sm mb-3">{saveError}</p>
+          )}
+          {saveOk && (
+            <p className="text-green-500 text-sm mb-3">✓ 保存しました</p>
+          )}
+
+          <button
+            className="btn-primary w-full"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? "保存中..." : "保存する"}
+          </button>
+        </div>
       </main>
     </div>
   );

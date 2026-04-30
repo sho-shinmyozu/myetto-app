@@ -13,10 +13,9 @@ export default function SideMenu({ open, onClose }: Props) {
   const pathname = usePathname();
 
   const items = [
-    { href: "/profile",    label: "ユーザー管理", emoji: "👤" },
     { href: "/dashboard",  label: "ホーム",        emoji: "🏠" },
+    { href: "/profile",    label: "ユーザー管理",  emoji: "👤" },
     { href: "/goal",       label: "目標の確認",    emoji: "🎯" },
-    { href: "/goal/edit",  label: "目標を更新",    emoji: "✏️" },
     { href: "/graph",      label: "体重グラフ",    emoji: "📈" },
     { href: "/calendar",   label: "カレンダー",    emoji: "📅" },
   ];

@@ -22,10 +22,19 @@ export async function GET(req: NextRequest) {
       summaryDate: true,
       totalCalories: true,
       calorieGoal: true,
-      isGoalAchieved: true,
     },
     orderBy: { summaryDate: "asc" },
   });
 
-  return NextResponse.json({ summaries });
+  // isGoalAchieved をリアルタイムで再計算する
+  // DB保存値は目標変更後に古くなるため、数値から直接判定する
+  type SummaryRow = { summaryDate: Date; totalCalories: number; calorieGoal: number };
+  const result = summaries.map((s: SummaryRow) => ({
+    summaryDate: s.summaryDate,
+    totalCalories: s.totalCalories,
+    calorieGoal: s.calorieGoal,
+    isGoalAchieved: s.totalCalories > 0 && s.totalCalories <= s.calorieGoal,
+  }));
+
+  return NextResponse.json({ summaries: result });
 }

@@ -121,7 +121,10 @@ export async function POST(req: NextRequest) {
     include: { items: true },
   });
 
-  await updateDailySummary(userId, logDateObj);
+  // サマリー更新は非同期で行い、失敗しても食事保存は成功させる
+  updateDailySummary(userId, logDateObj).catch((err) =>
+    console.error("[updateDailySummary] error:", err)
+  );
 
   return NextResponse.json({ mealLog });
 }
@@ -130,36 +133,29 @@ async function updateDailySummary(userId: string, date: Date) {
   const dayEnd = new Date(date);
   dayEnd.setDate(dayEnd.getDate() + 1);
 
-  const logs = await prisma.mealLog.findMany({
-    where: { userId, logDate: { gte: date, lt: dayEnd } },
-    select: { totalCalories: true },
-  });
+  const [logs, goal] = await Promise.all([
+    prisma.mealLog.findMany({
+      where: { userId, logDate: { gte: date, lt: dayEnd } },
+      select: { totalCalories: true },
+    }),
+    prisma.userGoal.findFirst({
+      where: { userId, isActive: true },
+      select: { dailyCalorieTarget: true },
+    }),
+  ]);
 
   let totalCalories = 0;
   for (const log of logs) {
-    totalCalories += log.totalCalories;
+    totalCalories += log.totalCalories ?? 0;
   }
 
-  const goal = await prisma.userGoal.findFirst({
-    where: { userId, isActive: true },
-    select: { dailyCalorieTarget: true },
-  });
-
   const calorieGoal = goal?.dailyCalorieTarget ?? 2000;
+  // totalCalories > 0 の場合のみ isGoalAchieved を true にする
+  const isGoalAchieved = totalCalories > 0 && totalCalories <= calorieGoal;
 
   await prisma.dailySummary.upsert({
     where: { userId_summaryDate: { userId, summaryDate: date } },
-    create: {
-      userId,
-      summaryDate: date,
-      totalCalories,
-      calorieGoal,
-      isGoalAchieved: totalCalories <= calorieGoal,
-    },
-    update: {
-      totalCalories,
-      calorieGoal,
-      isGoalAchieved: totalCalories <= calorieGoal,
-    },
+    create: { userId, summaryDate: date, totalCalories, calorieGoal, isGoalAchieved },
+    update: { totalCalories, calorieGoal, isGoalAchieved },
   });
 }
