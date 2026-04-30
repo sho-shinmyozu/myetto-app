@@ -139,8 +139,8 @@ export default function CalendarPage() {
                     <Image
                       src="/png/pig.PNG"
                       alt="オーバー"
-                      width={28}
-                      height={28}
+                      width={32}
+                      height={32}
                       className="rounded-full mt-0.5"
                       style={{ objectFit: "cover" }}
                     />
@@ -172,8 +172,8 @@ export default function CalendarPage() {
               <Image
                 src="/png/pig.PNG"
                 alt="オーバー"
-                width={28}
-                height={28}
+                width={32}
+                height={32}
                 className="rounded-full"
                 style={{ objectFit: "cover" }}
               />
