@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSoloUserId } from "@/lib/solo-user";
+import { auth } from "@/lib/auth";
 import { calcGoals } from "@/lib/calc/bmr";
 import { z } from "zod";
 
@@ -16,7 +16,9 @@ const onboardingSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const userId = await getSoloUserId();
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = session.user.id;
 
   const body = await req.json();
   const parsed = onboardingSchema.safeParse(body);

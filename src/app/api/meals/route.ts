@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSoloUserId } from "@/lib/solo-user";
+import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { startOfDay } from "date-fns";
 
@@ -53,7 +53,9 @@ function toItemCreate(item: Item, idx: number) {
 }
 
 export async function GET(req: NextRequest) {
-  const userId = await getSoloUserId();
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = session.user.id;
 
   const dateStr = req.nextUrl.searchParams.get("date");
   const date = dateStr ? new Date(dateStr) : new Date();
@@ -74,7 +76,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const userId = await getSoloUserId();
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = session.user.id;
 
   const body = await req.json();
   const parsed = mealSchema.safeParse(body);

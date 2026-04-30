@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSoloUserId } from "@/lib/solo-user";
+import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { startOfDay, subDays } from "date-fns";
 
@@ -16,7 +16,9 @@ const bodySchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
-  const userId = await getSoloUserId();
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = session.user.id;
 
   const period = req.nextUrl.searchParams.get("period") ?? "1m";
   const daysMap: Record<string, number> = {
@@ -40,7 +42,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const userId = await getSoloUserId();
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = session.user.id;
 
   const body = await req.json();
   const parsed = bodySchema.safeParse(body);

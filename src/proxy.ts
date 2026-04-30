@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import NextAuth from "next-auth";
+import { authConfig } from "@/lib/auth.config";
 
-export function proxy(_req: NextRequest) {
-  return NextResponse.next();
-}
+const { auth } = NextAuth(authConfig);
+
+export const proxy = auth;
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|png).*)"],

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSoloUserId } from "@/lib/solo-user";
+import { auth } from "@/lib/auth";
 import { startOfMonth, endOfMonth } from "date-fns";
 
 export async function GET(req: NextRequest) {
-  const userId = await getSoloUserId();
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = session.user.id;
 
   const yearMonth = req.nextUrl.searchParams.get("month"); // "2026-04"
   const base = yearMonth ? new Date(`${yearMonth}-01`) : new Date();

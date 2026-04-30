@@ -8,7 +8,7 @@ import Image from "next/image";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -19,13 +19,13 @@ export default function LoginPage() {
     setError("");
 
     const res = await signIn("credentials", {
-      email,
+      username,
       password,
       redirect: false,
     });
 
     if (res?.error) {
-      setError("メールアドレスまたはパスワードが正しくありません");
+      setError("ユーザー名またはパスワードが正しくありません");
       setLoading(false);
     } else {
       router.push("/");
@@ -53,14 +53,14 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-600 mb-1">
-                メールアドレス
+                ユーザー名
               </label>
               <input
-                type="email"
+                type="text"
                 className="input-field"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="example@mail.com"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="username"
                 required
               />
             </div>

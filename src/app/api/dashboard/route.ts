@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSoloUserId } from "@/lib/solo-user";
+import { auth } from "@/lib/auth";
 import { startOfDay } from "date-fns";
 
 export async function GET(req: NextRequest) {
-  const userId = await getSoloUserId();
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = session.user.id;
 
   const dateStr = req.nextUrl.searchParams.get("date");
   const date = dateStr ? startOfDay(new Date(dateStr)) : startOfDay(new Date());

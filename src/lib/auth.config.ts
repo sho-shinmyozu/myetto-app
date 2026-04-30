@@ -10,7 +10,9 @@ export const authConfig: NextAuthConfig = {
       const pathname = nextUrl.pathname;
       const publicPaths = ["/login", "/register"];
       const isPublic = publicPaths.some((p) => pathname.startsWith(p));
+      const isApi = pathname.startsWith("/api/");
 
+      if (isApi) return true;
       if (!isLoggedIn && !isPublic) return false;
       if (isLoggedIn && isPublic) {
         return Response.redirect(new URL("/", nextUrl));

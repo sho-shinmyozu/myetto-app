@@ -1,20 +1,18 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { getSoloUserId } from "@/lib/solo-user";
 
 export default async function RootPage() {
-  const userId = await getSoloUserId();
+  const session = await auth();
+  if (!session?.user?.id) redirect("/login");
 
   const user = await prisma.user.findUnique({
-    where: { id: userId },
+    where: { id: session.user.id },
     select: { onboardingDone: true },
   });
 
-  if (!user?.onboardingDone) {
-    redirect("/onboarding");
-  }
-
+  if (!user?.onboardingDone) redirect("/onboarding");
   redirect("/dashboard");
 }

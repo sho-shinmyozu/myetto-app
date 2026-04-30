@@ -8,11 +8,11 @@ import Image from "next/image";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ email: "", password: "", nickname: "" });
+  const [form, setForm] = useState({ username: "", password: "", nickname: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: { preventDefault(): void }) {
     e.preventDefault();
     setLoading(true);
     setError("");
@@ -31,7 +31,7 @@ export default function RegisterPage() {
     }
 
     await signIn("credentials", {
-      email: form.email,
+      username: form.username,
       password: form.password,
       redirect: false,
     });
@@ -60,7 +60,23 @@ export default function RegisterPage() {
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-600 mb-1">
-                ニックネーム
+                ユーザー名（半角英数字・3〜20文字）
+              </label>
+              <input
+                type="text"
+                className="input-field"
+                value={form.username}
+                onChange={(e) => setForm({ ...form, username: e.target.value })}
+                placeholder="my_username"
+                minLength={3}
+                maxLength={20}
+                pattern="[a-zA-Z0-9_]+"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1">
+                ニックネーム（アプリ内表示名）
               </label>
               <input
                 type="text"
@@ -68,20 +84,6 @@ export default function RegisterPage() {
                 value={form.nickname}
                 onChange={(e) => setForm({ ...form, nickname: e.target.value })}
                 placeholder="あすけんちゃん"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">
-                メールアドレス
-              </label>
-              <input
-                type="email"
-                className="input-field"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="example@mail.com"
-                required
               />
             </div>
             <div>
