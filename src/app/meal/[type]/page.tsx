@@ -426,7 +426,7 @@ function MealEntryContent() {
       </div>
 
       {/* Footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-pink-100 px-4 py-3 flex items-center gap-3">
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white border-t border-pink-100 px-4 py-3 flex items-center gap-3">
         <span className="text-sm text-gray-500 flex-shrink-0">合計カロリー</span>
         <span className="text-lg font-bold text-pink-500 flex-1">
           {totalCalories.toLocaleString()} kcal
