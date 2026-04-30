@@ -6,7 +6,7 @@ export async function GET() {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const [user, goal] = await Promise.all([
+  const [user, goal, lastBodyRecord] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
       select: {
@@ -14,9 +14,6 @@ export async function GET() {
         targetWeightKg: true,
         paceType: true,
         approachType: true,
-        gender: true,
-        birthDate: true,
-        heightCm: true,
         weightKg: true,
       },
     }),
@@ -31,7 +28,12 @@ export async function GET() {
         targetDate: true,
       },
     }),
+    prisma.bodyRecord.findFirst({
+      where: { userId: session.user.id },
+      orderBy: { recordDate: "desc" },
+      select: { weightKg: true, recordDate: true },
+    }),
   ]);
 
-  return NextResponse.json({ user, goal });
+  return NextResponse.json({ user, goal, lastBodyRecord });
 }

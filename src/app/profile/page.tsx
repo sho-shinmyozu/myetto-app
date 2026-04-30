@@ -38,6 +38,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveOk, setSaveOk] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState<EditForm>({ gender: "", birthDate: "", heightCm: "" });
 
   const fetchProfile = useCallback(() => {
@@ -87,6 +88,7 @@ export default function ProfilePage() {
       } else if (json?.user) {
         setData(json.user);
         setSaveOk(true);
+        setIsEditing(false);
         setTimeout(() => setSaveOk(false), 2000);
       }
     } catch {
@@ -95,6 +97,20 @@ export default function ProfilePage() {
       setSaving(false);
     }
   }
+
+  function handleEditStart() {
+    setForm({
+      gender: (data?.gender as EditForm["gender"]) ?? "",
+      birthDate: data?.birthDate ? data.birthDate.split("T")[0] : "",
+      heightCm: data?.heightCm?.toString() ?? "",
+    });
+    setSaveError("");
+    setSaveOk(false);
+    setIsEditing(true);
+  }
+
+  const genderLabel =
+    data?.gender === "female" ? "👩 女性" : data?.gender === "male" ? "👨 男性" : "---";
 
   const birthDateLabel = data?.birthDate
     ? format(new Date(data.birthDate), "yyyy年M月d日", { locale: ja })
@@ -157,77 +173,108 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {/* Editable fields */}
+        {/* Basic Info */}
         <div className="card">
-          <h2 className="text-sm font-semibold text-gray-500 mb-4">基本情報の編集</h2>
-
-          {/* Gender */}
-          <div className="mb-4">
-            <p className="text-sm font-medium text-gray-600 mb-2">性別</p>
-            <div className="flex gap-3">
-              {(["female", "male"] as const).map((g) => (
-                <button
-                  key={g}
-                  className={`tag-button flex-1 py-2.5 text-sm ${form.gender === g ? "selected" : ""}`}
-                  onClick={() => setForm({ ...form, gender: g })}
-                >
-                  {g === "female" ? "👩 女性" : "👨 男性"}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Birth Date */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-600 mb-1">
-              生年月日
-            </label>
-            <input
-              type="date"
-              className="input-field"
-              value={form.birthDate}
-              max={new Date().toISOString().split("T")[0]}
-              onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
-            />
-            {data?.birthDate && (
-              <p className="text-xs text-gray-400 mt-1">現在: {birthDateLabel}</p>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-gray-500">基本情報</h2>
+            {!isEditing && (
+              <button
+                onClick={handleEditStart}
+                className="text-xs text-pink-500 border border-pink-200 rounded-full px-3 py-1 hover:bg-pink-50 transition-colors"
+              >
+                編集
+              </button>
             )}
           </div>
 
-          {/* Height */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-600 mb-1">
-              身長 (cm)
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                className="input-field flex-1"
-                value={form.heightCm}
-                onChange={(e) => setForm({ ...form, heightCm: e.target.value })}
-                placeholder="160"
-                min="100"
-                max="250"
-                step="0.1"
+          {!isEditing ? (
+            /* 表示モード */
+            <>
+              <InfoRow label="性別" value={genderLabel} />
+              <InfoRow label="生年月日" value={birthDateLabel} />
+              <InfoRow
+                label="身長"
+                value={data?.heightCm != null ? `${data.heightCm} cm` : "---"}
               />
-              <span className="text-sm text-gray-500 flex-shrink-0">cm</span>
-            </div>
-          </div>
+            </>
+          ) : (
+            /* 編集モード */
+            <>
+              {/* Gender */}
+              <div className="mb-4">
+                <p className="text-sm font-medium text-gray-600 mb-2">性別</p>
+                <div className="flex gap-3">
+                  {(["female", "male"] as const).map((g) => (
+                    <button
+                      key={g}
+                      className={`tag-button flex-1 py-2.5 text-sm ${form.gender === g ? "selected" : ""}`}
+                      onClick={() => setForm({ ...form, gender: g })}
+                    >
+                      {g === "female" ? "👩 女性" : "👨 男性"}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          {saveError && (
-            <p className="text-red-500 text-sm mb-3">{saveError}</p>
-          )}
-          {saveOk && (
-            <p className="text-green-500 text-sm mb-3">✓ 保存しました</p>
-          )}
+              {/* Birth Date */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-600 mb-1">
+                  生年月日
+                </label>
+                <input
+                  type="date"
+                  className="input-field"
+                  value={form.birthDate}
+                  max={new Date().toISOString().split("T")[0]}
+                  onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
+                />
+              </div>
 
-          <button
-            className="btn-primary w-full"
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? "保存中..." : "保存する"}
-          </button>
+              {/* Height */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-600 mb-1">
+                  身長 (cm)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    className="input-field flex-1"
+                    value={form.heightCm}
+                    onChange={(e) => setForm({ ...form, heightCm: e.target.value })}
+                    placeholder="160"
+                    min="100"
+                    max="250"
+                    step="0.1"
+                  />
+                  <span className="text-sm text-gray-500 flex-shrink-0">cm</span>
+                </div>
+              </div>
+
+              {saveError && (
+                <p className="text-red-500 text-sm mb-3">{saveError}</p>
+              )}
+              {saveOk && (
+                <p className="text-green-500 text-sm mb-3">✓ 保存しました</p>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  className="flex-1 py-2.5 text-sm font-medium text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                  onClick={() => { setIsEditing(false); setSaveError(""); }}
+                  disabled={saving}
+                >
+                  キャンセル
+                </button>
+                <button
+                  className="btn-primary flex-1"
+                  onClick={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? "保存中..." : "保存する"}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </main>
     </div>

@@ -12,6 +12,7 @@ type GoalData = {
     targetWeightKg: number | null;
     paceType: string | null;
     approachType: string | null;
+    weightKg: number | null;
   } | null;
   goal: {
     dailyCalorieTarget: number;
@@ -21,6 +22,7 @@ type GoalData = {
     snackCalories: number;
     targetDate: string;
   } | null;
+  lastBodyRecord: { weightKg: number | null; recordDate: string } | null;
 };
 
 const GOAL_TYPE_LABELS: Record<string, string> = {
@@ -63,6 +65,32 @@ export default function GoalPage() {
   const u = data?.user;
   const g = data?.goal;
 
+  // 現在体重: 最新BodyRecord → なければ user.weightKg
+  const currentWeight =
+    data?.lastBodyRecord?.weightKg ?? u?.weightKg ?? null;
+  // 開始体重: onboarding時に入力した user.weightKg
+  const startWeight = u?.weightKg ?? null;
+  const targetWeight = u?.targetWeightKg ?? null;
+
+  const diff =
+    currentWeight != null && targetWeight != null
+      ? currentWeight - targetWeight
+      : null;
+
+  const progress =
+    startWeight != null &&
+    currentWeight != null &&
+    targetWeight != null &&
+    startWeight !== targetWeight
+      ? Math.min(
+          100,
+          Math.max(
+            0,
+            ((startWeight - currentWeight) / (startWeight - targetWeight)) * 100
+          )
+        )
+      : null;
+
   return (
     <div className="flex flex-col min-h-svh bg-gray-50">
       <SideMenu open={sideMenuOpen} onClose={() => setSideMenuOpen(false)} />
@@ -83,7 +111,75 @@ export default function GoalPage() {
       </header>
 
       <main className="flex-1 px-4 py-4 space-y-4 pb-8">
-        {/* Goal Settings */}
+        {/* ── 体重メインカード ── */}
+        <div className="card">
+          <h2 className="text-sm font-semibold text-gray-500 mb-4">体重の進捗</h2>
+
+          {/* 現在体重 / 目標体重 */}
+          <div className="flex items-end justify-around mb-4">
+            <div className="text-center">
+              <p className="text-xs text-gray-400 mb-1">現在体重</p>
+              <p className="text-4xl font-bold text-pink-500">
+                {currentWeight != null ? currentWeight.toFixed(1) : "---"}
+              </p>
+              <p className="text-sm text-gray-400">kg</p>
+            </div>
+            <div className="text-center pb-1">
+              <svg width="20" height="20" fill="none" stroke="#f9a8d4" strokeWidth="2">
+                <path d="M5 10h10M13 7l3 3-3 3" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-gray-400 mb-1">目標体重</p>
+              <p className="text-4xl font-bold text-gray-400">
+                {targetWeight != null ? targetWeight.toFixed(1) : "---"}
+              </p>
+              <p className="text-sm text-gray-400">kg</p>
+            </div>
+          </div>
+
+          {/* プログレスバー */}
+          {progress != null && (
+            <div className="mb-3">
+              <div className="w-full h-3 bg-pink-50 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-700"
+                  style={{
+                    width: `${progress}%`,
+                    background: "linear-gradient(90deg, #f9a8d4, #f05a9e)",
+                  }}
+                />
+              </div>
+              <p className="text-xs text-gray-400 mt-1 text-right">
+                達成率 {progress.toFixed(0)}%
+              </p>
+            </div>
+          )}
+
+          {/* 差分 */}
+          <div className="flex justify-around pt-3 border-t border-pink-50">
+            <div className="text-center">
+              <p className="text-xs text-gray-400 mb-0.5">あと</p>
+              <p className={`text-2xl font-bold ${diff != null && diff <= 0 ? "text-green-400" : "text-pink-500"}`}>
+                {diff != null
+                  ? diff <= 0
+                    ? "達成！"
+                    : `${diff.toFixed(1)} kg`
+                  : "---"}
+              </p>
+            </div>
+            {startWeight != null && (
+              <div className="text-center">
+                <p className="text-xs text-gray-400 mb-0.5">スタート体重</p>
+                <p className="text-2xl font-bold text-gray-400">
+                  {startWeight.toFixed(1)} kg
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── 目標設定 ── */}
         <div className="card">
           <h2 className="text-sm font-semibold text-gray-500 mb-3">目標設定</h2>
           <InfoRow
@@ -91,20 +187,22 @@ export default function GoalPage() {
             value={u?.goalType ? (GOAL_TYPE_LABELS[u.goalType] ?? u.goalType) : "---"}
           />
           <InfoRow
-            label="目標体重"
-            value={u?.targetWeightKg != null ? `${u.targetWeightKg} kg` : "---"}
-          />
-          <InfoRow
             label="ペース"
             value={u?.paceType ? (PACE_LABELS[u.paceType] ?? u.paceType) : "---"}
           />
           <InfoRow
-            label="減量アプローチ"
+            label="アプローチ"
             value={u?.approachType ? (APPROACH_LABELS[u.approachType] ?? u.approachType) : "---"}
           />
+          {g?.targetDate && (
+            <InfoRow
+              label="目標達成予定"
+              value={format(new Date(g.targetDate), "yyyy年M月d日", { locale: ja })}
+            />
+          )}
         </div>
 
-        {/* Active Goal from UserGoal */}
+        {/* ── カロリー目標 ── */}
         {g && (
           <div className="card">
             <h2 className="text-sm font-semibold text-gray-500 mb-3">カロリー目標</h2>
@@ -116,12 +214,6 @@ export default function GoalPage() {
             <InfoRow label="昼食" value={`${g.lunchCalories} kcal`} />
             <InfoRow label="夕食" value={`${g.dinnerCalories} kcal`} />
             <InfoRow label="間食" value={`${g.snackCalories} kcal`} />
-            {g.targetDate && (
-              <InfoRow
-                label="目標達成予定"
-                value={format(new Date(g.targetDate), "yyyy年M月d日", { locale: ja })}
-              />
-            )}
           </div>
         )}
 

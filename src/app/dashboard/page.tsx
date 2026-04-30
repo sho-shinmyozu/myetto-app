@@ -242,30 +242,6 @@ function DashboardContent() {
           })}
         </div>
 
-        {/* Weight Card */}
-        {data?.lastBodyRecord && (
-          <div className="card flex items-center gap-3">
-            <span className="text-2xl">📊</span>
-            <div className="flex-1">
-              <p className="text-xs text-gray-400">最新体重</p>
-              <p className="text-xl font-bold text-gray-700">
-                {data.lastBodyRecord.weightKg} kg
-              </p>
-              <p className="text-xs text-gray-400">
-                目標まで{" "}
-                <span className="text-pink-500 font-semibold">
-                  {(data.lastBodyRecord.weightKg - (data.user.targetWeightKg ?? 0)).toFixed(1)} kg
-                </span>
-              </p>
-            </div>
-            <button
-              onClick={() => router.push("/graph")}
-              className="text-xs text-pink-400 border border-pink-200 rounded-full px-3 py-1"
-            >
-              グラフ
-            </button>
-          </div>
-        )}
       </main>
     </div>
   );
