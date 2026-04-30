@@ -16,6 +16,7 @@ type DashboardData = {
     meals: Record<string, number>;
   };
   lastBodyRecord: { weightKg: number; recordDate: string } | null;
+  todayBodyRecord: { weightKg: number } | null;
 };
 
 const MOTIVATION_MESSAGES = [
@@ -194,8 +195,10 @@ export default function DashboardPage() {
             { type: "dinner", label: "夕食", emoji: "🌙", path: "/meal/dinner", goal: data?.goal.dinnerCalories },
             { type: "snack", label: "間食", emoji: "🍪", path: "/meal/snack", goal: data?.goal.snackCalories },
           ].map((card) => {
-            const eaten = card.type !== "body" ? data?.today.meals[card.type] ?? 0 : null;
+            const isBodyCard = card.type === "body";
+            const eaten = !isBodyCard ? data?.today.meals[card.type] ?? 0 : null;
             const hasEntry = eaten !== null && eaten > 0;
+            const bodyWeight = isBodyCard ? data?.todayBodyRecord?.weightKg ?? null : null;
 
             return (
               <button
@@ -209,7 +212,13 @@ export default function DashboardPage() {
                   <span className="text-xl">{card.emoji}</span>
                   <span className="text-sm font-semibold text-gray-700">{card.label}</span>
                 </div>
-                {eaten !== null ? (
+                {isBodyCard ? (
+                  <div>
+                    <p className={`text-lg font-bold ${bodyWeight !== null ? "text-pink-500" : "text-gray-300"}`}>
+                      {bodyWeight !== null ? `${bodyWeight} kg` : "未記録"}
+                    </p>
+                  </div>
+                ) : eaten !== null ? (
                   <div>
                     <p className={`text-lg font-bold ${hasEntry ? "text-pink-500" : "text-gray-300"}`}>
                       {hasEntry ? `${eaten.toLocaleString()} kcal` : "未記録"}

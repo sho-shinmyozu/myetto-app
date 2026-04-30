@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const dayEnd = new Date(date);
   dayEnd.setDate(dayEnd.getDate() + 1);
 
-  const [user, goal, mealLogs, lastBody] = await Promise.all([
+  const [user, goal, mealLogs, lastBody, todayBody] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -42,6 +42,10 @@ export async function GET(req: NextRequest) {
       orderBy: { recordDate: "desc" },
       select: { weightKg: true, recordDate: true },
     }),
+    prisma.bodyRecord.findFirst({
+      where: { userId, recordDate: { gte: date, lt: dayEnd } },
+      select: { weightKg: true },
+    }),
   ]);
 
   let totalCalories = 0;
@@ -70,5 +74,6 @@ export async function GET(req: NextRequest) {
       remainingCalories: Math.max(0, (goal?.dailyCalorieTarget ?? 2000) - totalCalories),
     },
     lastBodyRecord: lastBody,
+    todayBodyRecord: todayBody,
   });
 }
