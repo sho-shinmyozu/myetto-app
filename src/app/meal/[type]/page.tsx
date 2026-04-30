@@ -435,7 +435,8 @@ function MealEntryContent() {
         </div>
         <div className="flex justify-end">
           <button
-            className="btn-primary px-8"
+            className="btn-primary"
+            style={{ width: "auto", paddingLeft: "2rem", paddingRight: "2rem" }}
             onClick={handleSave}
             disabled={saving}
           >
