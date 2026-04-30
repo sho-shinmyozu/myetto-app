@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { format, addDays, subDays, startOfDay } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -27,9 +27,16 @@ const MOTIVATION_MESSAGES = [
   "目標に向かって、今日も一緒に頑張ろう🎯",
 ];
 
-export default function DashboardPage() {
+function DashboardContent() {
   const router = useRouter();
-  const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()));
+  const searchParams = useSearchParams();
+
+  // URLパラメータ ?date=YYYY-MM-DD から初期日付を取得
+  const dateParam = searchParams.get("date");
+  const [selectedDate, setSelectedDate] = useState<Date>(() =>
+    dateParam ? startOfDay(new Date(dateParam)) : startOfDay(new Date())
+  );
+
   const [data, setData] = useState<DashboardData | null>(null);
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
   const [message] = useState(
@@ -47,10 +54,10 @@ export default function DashboardPage() {
     fetchDashboard(selectedDate);
   }, [selectedDate, fetchDashboard]);
 
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = addDays(subDays(new Date(), 3), i);
-    return d;
-  });
+  // 週ストリップを selectedDate 中心に表示（常に today 固定ではなく）
+  const weekDays = Array.from({ length: 7 }, (_, i) =>
+    addDays(subDays(selectedDate, 3), i)
+  );
 
   const caloriePct = data
     ? Math.min(100, (data.today.totalCalories / data.goal.dailyCalorieTarget) * 100)
@@ -85,7 +92,7 @@ export default function DashboardPage() {
           <div className="w-8" />
         </div>
 
-        {/* Week Strip */}
+        {/* Week Strip — selectedDate を中心に表示 */}
         <div className="flex justify-between gap-1">
           {weekDays.map((d) => {
             const isSelected =
@@ -174,8 +181,8 @@ export default function DashboardPage() {
             <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-pink-50 text-center">
               {[
                 { label: "たんぱく質", val: data.today.totalCalories > 0 ? "記録済" : "-" },
-                { label: "脂質", val: data.today.totalCalories > 0 ? "記録済" : "-" },
-                { label: "炭水化物", val: data.today.totalCalories > 0 ? "記録済" : "-" },
+                { label: "脂質",       val: data.today.totalCalories > 0 ? "記録済" : "-" },
+                { label: "炭水化物",   val: data.today.totalCalories > 0 ? "記録済" : "-" },
               ].map((n) => (
                 <div key={n.label}>
                   <p className="text-xs text-gray-400">{n.label}</p>
@@ -189,11 +196,11 @@ export default function DashboardPage() {
         {/* Meal Cards */}
         <div className="grid grid-cols-2 gap-3">
           {[
-            { type: "body", label: "カラダ記録", emoji: "⚖️", path: "/body-record", goal: null },
-            { type: "breakfast", label: "朝食", emoji: "🌅", path: "/meal/breakfast", goal: data?.goal.breakfastCalories },
-            { type: "lunch", label: "昼食", emoji: "☀️", path: "/meal/lunch", goal: data?.goal.lunchCalories },
-            { type: "dinner", label: "夕食", emoji: "🌙", path: "/meal/dinner", goal: data?.goal.dinnerCalories },
-            { type: "snack", label: "間食", emoji: "🍪", path: "/meal/snack", goal: data?.goal.snackCalories },
+            { type: "body",      label: "カラダ記録", emoji: "⚖️",  path: "/body-record",   goal: null },
+            { type: "breakfast", label: "朝食",       emoji: "🌅",  path: "/meal/breakfast", goal: data?.goal.breakfastCalories },
+            { type: "lunch",     label: "昼食",       emoji: "☀️",  path: "/meal/lunch",     goal: data?.goal.lunchCalories },
+            { type: "dinner",    label: "夕食",       emoji: "🌙",  path: "/meal/dinner",    goal: data?.goal.dinnerCalories },
+            { type: "snack",     label: "間食",       emoji: "🍪",  path: "/meal/snack",     goal: data?.goal.snackCalories },
           ].map((card) => {
             const isBodyCard = card.type === "body";
             const eaten = !isBodyCard ? data?.today.meals[card.type] ?? 0 : null;
@@ -261,5 +268,17 @@ export default function DashboardPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-svh">
+        <p className="text-gray-400 text-sm">読み込み中...</p>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }
