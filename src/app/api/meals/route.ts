@@ -88,6 +88,18 @@ export async function POST(req: NextRequest) {
 
   const { mealType, logDate, items, notes } = parsed.data;
   const logDateObj = startOfDay(new Date(logDate));
+
+  // アイテムが空の場合はMealLogを削除してDBにゼロデータを残さない
+  if (items.length === 0) {
+    await prisma.mealLog.deleteMany({
+      where: { userId, mealType, logDate: logDateObj },
+    });
+    updateDailySummary(userId, logDateObj).catch((err) =>
+      console.error("[updateDailySummary] error:", err)
+    );
+    return NextResponse.json({ mealLog: null });
+  }
+
   const { calories, protein, fat, carb } = sumItems(items);
   const itemCreate = items.map(toItemCreate);
 
@@ -121,7 +133,6 @@ export async function POST(req: NextRequest) {
     include: { items: true },
   });
 
-  // サマリー更新は非同期で行い、失敗しても食事保存は成功させる
   updateDailySummary(userId, logDateObj).catch((err) =>
     console.error("[updateDailySummary] error:", err)
   );
@@ -149,9 +160,16 @@ async function updateDailySummary(userId: string, date: Date) {
     totalCalories += log.totalCalories ?? 0;
   }
 
+  // 全食事が削除されてカロリーが0になった場合はDailySummaryも削除する
+  if (totalCalories === 0) {
+    await prisma.dailySummary.deleteMany({
+      where: { userId, summaryDate: date },
+    });
+    return;
+  }
+
   const calorieGoal = goal?.dailyCalorieTarget ?? 2000;
-  // totalCalories > 0 の場合のみ isGoalAchieved を true にする
-  const isGoalAchieved = totalCalories > 0 && totalCalories <= calorieGoal;
+  const isGoalAchieved = totalCalories <= calorieGoal;
 
   await prisma.dailySummary.upsert({
     where: { userId_summaryDate: { userId, summaryDate: date } },

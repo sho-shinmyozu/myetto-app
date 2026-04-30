@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
     where: {
       userId,
       summaryDate: { gte: from, lte: to },
+      totalCalories: { gt: 0 },
     },
     select: {
       summaryDate: true,
