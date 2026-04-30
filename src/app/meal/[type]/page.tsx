@@ -426,23 +426,19 @@ function MealEntryContent() {
       </div>
 
       {/* Footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-pink-100 px-4 py-4 space-y-2">
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-500">合計カロリー</span>
-          <span className="text-xl font-bold text-pink-500">
-            {totalCalories.toLocaleString()} kcal
-          </span>
-        </div>
-        <div className="flex justify-end">
-          <button
-            className="btn-primary"
-            style={{ width: "auto", paddingLeft: "2rem", paddingRight: "2rem" }}
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? "保存中..." : hasExisting ? "更新する ✓" : "完了 ✓"}
-          </button>
-        </div>
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-pink-100 px-4 py-3 flex items-center gap-3">
+        <span className="text-sm text-gray-500 flex-shrink-0">合計カロリー</span>
+        <span className="text-lg font-bold text-pink-500 flex-1">
+          {totalCalories.toLocaleString()} kcal
+        </span>
+        <button
+          className="btn-primary flex-shrink-0"
+          style={{ width: "auto", padding: "0.6rem 1.5rem", fontSize: "0.9rem" }}
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saving ? "保存中..." : hasExisting ? "更新する ✓" : "完了 ✓"}
+        </button>
       </div>
     </div>
   );
