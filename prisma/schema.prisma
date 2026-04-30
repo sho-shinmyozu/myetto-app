@@ -98,6 +98,7 @@ model GenericFood {
   id           String   @id @default(cuid())
   foodCode     String?  @unique
   nameJa       String
+  nameKana     String?
   nameEn       String?
   category     String?
   caloriesKcal Float
@@ -113,14 +114,18 @@ model GenericFood {
   aliases   FoodAlias[]
 
   @@index([nameJa])
+  @@index([nameKana])
+  @@index([category])
 }
 
 model BrandedFood {
   id              String   @id @default(cuid())
   barcode         String?  @unique
   name            String
+  nameKana        String?
   brand           String?
   restaurantChain String?
+  category        String?
   caloriesKcal    Float
   servingSizeG    Float?
   proteinG        Float?
@@ -133,21 +138,27 @@ model BrandedFood {
   aliases  FoodAlias[]
 
   @@index([name])
+  @@index([nameKana])
+  @@index([category])
 }
 
 model UserFood {
   id              String   @id @default(cuid())
   userId          String
   name            String
+  nameKana        String?
+  category        String?
   caloriesKcal    Float
   proteinG        Float?
   fatG            Float?
   carbG           Float?
   defaultServingG Float    @default(100)
+  source          String   @default("user")
   createdAt       DateTime @default(now())
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, name])
+  @@index([category])
 }
 
 model FoodServing {

@@ -159,7 +159,7 @@ function MealEntryContent() {
   useEffect(() => {
     Promise.all([
       fetch(`/api/meals?date=${date}`).then((r) => r.json()),
-      fetch("/api/meals/history").then((r) => r.json()),
+      fetch(`/api/meals/history?mealType=${mealType}`).then((r) => r.json()),
     ]).then(([mealData, histData]) => {
       const log = (mealData.logs ?? []).find(
         (l: { mealType: string }) => l.mealType === mealType
@@ -250,15 +250,31 @@ function MealEntryContent() {
     }
   }
 
-  // 検索結果に既追加済みの食品を除くフィルタリング
+  const DROPDOWN_LIMIT = 10;
+
+  // 追加済みを除いた検索結果
   const filteredResults = results.filter(
     (f) => !items.some((it) => it.foodId === f.id)
   );
 
-  // 履歴から現在itemsにないものだけ表示
+  // 追加済みを除いた全履歴
   const filteredHistory = history.filter(
     (h) => !items.some((it) => it.foodId === h.foodId)
   );
+
+  // クエリ入力中: 履歴をクエリでフィルタして上位に表示（最大3件）
+  const queryLower = query.toLowerCase();
+  const historyMatches = query
+    ? filteredHistory
+        .filter((h) => h.foodName.toLowerCase().includes(queryLower))
+        .slice(0, 3)
+    : [];
+
+  // 履歴マッチに含まれていない検索結果のみ表示
+  const historyMatchIds = new Set(historyMatches.map((h) => h.foodId));
+  const remainingResults = filteredResults
+    .filter((f) => !historyMatchIds.has(f.id))
+    .slice(0, DROPDOWN_LIMIT - historyMatches.length);
 
   return (
     <div className="flex flex-col min-h-svh bg-gray-50">
@@ -293,12 +309,31 @@ function MealEntryContent() {
             />
           </div>
 
-          {(filteredResults.length > 0 || searching) && (
+          {(historyMatches.length > 0 || remainingResults.length > 0 || searching) && (
             <div className="mt-2 border border-pink-100 rounded-xl overflow-hidden">
               {searching && (
                 <div className="px-4 py-3 text-sm text-gray-400 text-center">検索中...</div>
               )}
-              {filteredResults.map((food) => (
+
+              {/* 履歴マッチ（上位表示） */}
+              {historyMatches.map((h) => (
+                <button
+                  key={`hist-${h.foodId}`}
+                  onClick={() => addFromHistory(h)}
+                  className="w-full px-4 py-3 text-left border-b border-pink-50 last:border-0 hover:bg-pink-50 active:bg-pink-100 transition-colors"
+                >
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs text-pink-400 flex-shrink-0">履歴</span>
+                      <p className="text-sm font-medium text-gray-700 truncate">{h.foodName}</p>
+                    </div>
+                    <p className="text-sm font-bold text-pink-500 ml-4 flex-shrink-0">{h.calories} kcal</p>
+                  </div>
+                </button>
+              ))}
+
+              {/* 検索結果 */}
+              {remainingResults.map((food) => (
                 <button
                   key={`${food.type}-${food.id}`}
                   onClick={() => addFood(food)}
@@ -316,16 +351,10 @@ function MealEntryContent() {
                       <p className="text-xs text-gray-400">/100g</p>
                     </div>
                   </div>
-                  {(food.proteinG || food.fatG || food.carbG) && (
-                    <div className="flex gap-3 mt-1 text-xs text-gray-400">
-                      {food.proteinG && <span>P: {food.proteinG}g</span>}
-                      {food.fatG && <span>F: {food.fatG}g</span>}
-                      {food.carbG && <span>C: {food.carbG}g</span>}
-                    </div>
-                  )}
                 </button>
               ))}
-              {!searching && filteredResults.length === 0 && query && (
+
+              {!searching && historyMatches.length === 0 && remainingResults.length === 0 && query && (
                 <div className="px-4 py-3 text-sm text-gray-400 text-center">
                   見つかりませんでした
                 </div>

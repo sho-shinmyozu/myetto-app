@@ -1,17 +1,24 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 
-export async function GET() {
+const FETCH_LOGS = 30;
+const RETURN_ITEMS = 12;
+
+export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const userId = session.user.id;
 
-  // 直近10日分のMealLogを取得
+  const mealType = req.nextUrl.searchParams.get("mealType") ?? undefined;
+
   const recentLogs = await prisma.mealLog.findMany({
-    where: { userId },
+    where: {
+      userId,
+      ...(mealType ? { mealType } : {}),
+    },
     orderBy: { logDate: "desc" },
-    take: 10,
+    take: FETCH_LOGS,
     select: {
       items: {
         select: {
@@ -29,29 +36,42 @@ export async function GET() {
     },
   });
 
-  // foodIdで重複除去（最新の使用を優先）
-  const seen = new Set<string>();
-  const history: {
-    foodId: string;
-    foodType: string;
-    foodName: string;
-    quantityG: number;
-    calories: number;
-    proteinG: number | null;
-    fatG: number | null;
-    carbG: number | null;
-  }[] = [];
+  // foodId ごとにスコアを集計
+  // 出現ログのインデックスが小さいほど（最近）重みを高くする
+  // score += (FETCH_LOGS - logIndex) / FETCH_LOGS
+  const scoreMap = new Map<
+    string,
+    {
+      score: number;
+      item: {
+        foodId: string;
+        foodType: string;
+        foodName: string;
+        quantityG: number;
+        calories: number;
+        proteinG: number | null;
+        fatG: number | null;
+        carbG: number | null;
+      };
+    }
+  >();
 
-  for (const log of recentLogs) {
+  recentLogs.forEach((log: typeof recentLogs[number], logIndex: number) => {
+    const weight = (FETCH_LOGS - logIndex) / FETCH_LOGS;
     for (const item of log.items) {
-      if (!seen.has(item.foodId)) {
-        seen.add(item.foodId);
-        history.push(item);
-        if (history.length >= 12) break;
+      const existing = scoreMap.get(item.foodId);
+      if (existing) {
+        existing.score += weight;
+      } else {
+        scoreMap.set(item.foodId, { score: weight, item });
       }
     }
-    if (history.length >= 12) break;
-  }
+  });
+
+  const history = [...scoreMap.values()]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, RETURN_ITEMS)
+    .map(({ item }) => item);
 
   return NextResponse.json({ items: history });
 }
