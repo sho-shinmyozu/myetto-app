@@ -13,22 +13,27 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: { preventDefault(): void }) {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    const res = await signIn("credentials", {
-      username,
-      password,
-      redirect: false,
-    });
+    try {
+      const res = await signIn("credentials", {
+        username,
+        password,
+        redirect: false,
+      });
 
-    if (res?.error) {
-      setError("ユーザー名またはパスワードが正しくありません");
+      if (res?.error) {
+        setError("ユーザー名またはパスワードが正しくありません");
+        setLoading(false);
+      } else {
+        router.push("/");
+      }
+    } catch {
+      setError("通信エラーが発生しました。接続を確認してください");
       setLoading(false);
-    } else {
-      router.push("/");
     }
   }
 

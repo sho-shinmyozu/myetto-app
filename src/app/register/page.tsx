@@ -17,26 +17,37 @@ export default function RegisterPage() {
     setLoading(true);
     setError("");
 
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
 
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error ?? "登録に失敗しました");
+      let data: { success?: boolean; error?: string } | null = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = { error: "サーバーエラーが発生しました" };
+      }
+
+      if (!res.ok) {
+        setError(data?.error ?? "登録に失敗しました");
+        setLoading(false);
+        return;
+      }
+
+      await signIn("credentials", {
+        username: form.username,
+        password: form.password,
+        redirect: false,
+      });
+
+      router.push("/onboarding");
+    } catch {
+      setError("通信エラーが発生しました。接続を確認してください");
       setLoading(false);
-      return;
     }
-
-    await signIn("credentials", {
-      username: form.username,
-      password: form.password,
-      redirect: false,
-    });
-
-    router.push("/onboarding");
   }
 
   return (
