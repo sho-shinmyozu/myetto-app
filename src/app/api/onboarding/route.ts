@@ -4,6 +4,28 @@ import { auth } from "@/lib/auth";
 import { calcGoals } from "@/lib/calc/bmr";
 import { z } from "zod";
 
+export async function GET() {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: {
+      gender: true,
+      goalType: true,
+      birthDate: true,
+      heightCm: true,
+      weightKg: true,
+      targetWeightKg: true,
+      paceType: true,
+      approachType: true,
+      onboardingDone: true,
+    },
+  });
+
+  return NextResponse.json({ user });
+}
+
 const onboardingSchema = z.object({
   gender: z.enum(["male", "female"]),
   goalType: z.enum(["diet", "health", "muscle"]),

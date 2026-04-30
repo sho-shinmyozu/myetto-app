@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import Image from "next/image";
 
 type Props = {
@@ -11,13 +11,14 @@ type Props = {
 
 export default function SideMenu({ open, onClose }: Props) {
   const pathname = usePathname();
-  const router = useRouter();
 
   const items = [
-    { href: "/dashboard", label: "ホーム", emoji: "🏠" },
-    { href: "/graph", label: "体重グラフ", emoji: "📈" },
-    { href: "/calendar", label: "カレンダー", emoji: "📅" },
-    { href: "/onboarding", label: "目標を編集", emoji: "🎯" },
+    { href: "/profile",    label: "ユーザー管理", emoji: "👤" },
+    { href: "/dashboard",  label: "ホーム",        emoji: "🏠" },
+    { href: "/goal",       label: "目標の確認",    emoji: "🎯" },
+    { href: "/goal/edit",  label: "目標を更新",    emoji: "✏️" },
+    { href: "/graph",      label: "体重グラフ",    emoji: "📈" },
+    { href: "/calendar",   label: "カレンダー",    emoji: "📅" },
   ];
 
   return (
@@ -27,8 +28,10 @@ export default function SideMenu({ open, onClose }: Props) {
       }`}
     >
       {/* Header */}
-      <div className="px-6 pt-10 pb-6 border-b border-pink-50"
-           style={{ background: "linear-gradient(135deg, #fff5f9, #fce7f3)" }}>
+      <div
+        className="px-6 pt-10 pb-6 border-b border-pink-50"
+        style={{ background: "linear-gradient(135deg, #fff5f9, #fce7f3)" }}
+      >
         <Image
           src="/png/mymelody1.PNG"
           alt="myetto"
@@ -51,9 +54,7 @@ export default function SideMenu({ open, onClose }: Props) {
               href={item.href}
               onClick={onClose}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
-                isActive
-                  ? "text-white"
-                  : "text-gray-600 hover:bg-pink-50"
+                isActive ? "text-white" : "text-gray-600 hover:bg-pink-50"
               }`}
               style={
                 isActive
@@ -67,21 +68,6 @@ export default function SideMenu({ open, onClose }: Props) {
           );
         })}
       </nav>
-
-      {/* Footer */}
-      <div className="absolute bottom-0 left-0 right-0 px-4 pb-8 space-y-2">
-        <button
-          onClick={() => {
-            onClose();
-            router.push("/body-record");
-          }}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-pink-50"
-        >
-          <span className="text-lg">📋</span>
-          <span>カラダ記録</span>
-        </button>
-
-      </div>
     </aside>
   );
 }
