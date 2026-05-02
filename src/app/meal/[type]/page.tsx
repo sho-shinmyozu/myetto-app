@@ -295,7 +295,6 @@ function MealEntryContent() {
   const totalCalories = selectedFoods.reduce((s, sf) => s + sfCalories(sf), 0);
 
   async function handleSave() {
-    if (selectedFoods.length === 0) return;
     setSaving(true);
     try {
       const res = await fetch("/api/meals", {
@@ -560,7 +559,7 @@ function MealEntryContent() {
               className="btn-primary flex-shrink-0"
               style={{ width: "auto", padding: "0.6rem 1.5rem", fontSize: "0.9rem" }}
               onClick={handleSave}
-              disabled={saving || selectedFoods.length === 0}
+              disabled={saving}
             >
               {saving ? "保存中..." : hasExisting ? "更新する ✓" : "完了 ✓"}
             </button>
