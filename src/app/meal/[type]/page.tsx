@@ -51,7 +51,7 @@ const MEAL_LABELS: Record<string, { label: string; emoji: string }> = {
   snack:     { label: "間食", emoji: "🍪" },
 };
 
-const INPUT_COUNT = 10;
+const INPUT_COUNT = 5;
 
 // ─── ヘルパー ──────────────────────────────────────────────────────────────────
 
@@ -266,6 +266,29 @@ function MealEntryContent() {
     setSelectedFoods((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  // ── 提案タップ ─────────────────────────────────────────────────────────────
+
+  function handleSuggestionTap(h: RawItem) {
+    if (phase === "input") {
+      const nonEmpty = inputTexts.map((t) => t.trim()).filter(Boolean);
+      setSelectedFoods([rawToSelected(h)]);
+      if (nonEmpty.length > 0) {
+        setAddQuery(nonEmpty[0]);
+        setPendingTexts(nonEmpty.slice(1));
+      } else {
+        setAddQuery("");
+        setPendingTexts([]);
+      }
+      setAddResults([]);
+      setPhase("select");
+      setTimeout(() => addInputRef.current?.focus(), 150);
+    } else {
+      setSelectedFoods((prev) =>
+        prev.some((x) => x.foodId === h.foodId) ? prev : [...prev, rawToSelected(h)]
+      );
+    }
+  }
+
   // ── 数量操作 ───────────────────────────────────────────────────────────────
 
   function cycleServing(idx: number) {
@@ -318,7 +341,9 @@ function MealEntryContent() {
     }
   }
 
-  // ── 検索結果フィルタ ────────────────────────────────────────────────────────
+  // ── 提案・検索結果フィルタ ─────────────────────────────────────────────────
+
+  const suggestions = history.slice(0, 5);
 
   const queryLower = addQuery.toLowerCase();
   const historyMatches = addQuery.trim()
@@ -382,6 +407,24 @@ function MealEntryContent() {
                 </div>
               ))}
             </div>
+
+            {suggestions.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs text-gray-400 mb-1.5">よく使う食品</p>
+                <div className="flex overflow-x-auto gap-2 pb-1" style={{ scrollbarWidth: "none" }}>
+                  {suggestions.map((h) => (
+                    <button
+                      key={h.foodId}
+                      onClick={() => handleSuggestionTap(h)}
+                      className="flex-shrink-0 bg-white border border-pink-200 rounded-full px-3 py-1.5 text-xs text-gray-700 font-medium whitespace-nowrap active:bg-pink-50"
+                    >
+                      {h.foodName}
+                      <span className="ml-1 text-pink-400">{h.calories}kcal</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white border-t border-pink-100 px-4 py-3">
@@ -472,6 +515,29 @@ function MealEntryContent() {
                 </div>
               );
             })}
+
+            {/* ── 提案チップ ──────────────────────────────────────────────── */}
+            {suggestions.length > 0 && (
+              <div>
+                <p className="text-xs text-gray-400 mb-1.5">よく使う食品</p>
+                <div className="flex overflow-x-auto gap-2 pb-1" style={{ scrollbarWidth: "none" }}>
+                  {suggestions.map((h) => (
+                    <button
+                      key={h.foodId}
+                      onClick={() => handleSuggestionTap(h)}
+                      className={`flex-shrink-0 border rounded-full px-3 py-1.5 text-xs font-medium whitespace-nowrap active:bg-pink-50 ${
+                        selectedFoods.some((x) => x.foodId === h.foodId)
+                          ? "bg-pink-100 border-pink-300 text-pink-600"
+                          : "bg-white border-pink-200 text-gray-700"
+                      }`}
+                    >
+                      {h.foodName}
+                      <span className="ml-1 text-pink-400">{h.calories}kcal</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* ── 追加入力エリア ────────────────────────────────────────────── */}
             <div ref={addAreaRef} className="card">
