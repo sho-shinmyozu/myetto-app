@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { format, addDays, subDays, startOfDay } from "date-fns";
+import { format, addDays, subDays, startOfDay, differenceInDays } from "date-fns";
 import { ja } from "date-fns/locale";
 import SideMenu from "@/components/SideMenu";
 
@@ -27,11 +27,17 @@ const MOTIVATION_MESSAGES = [
   "目標に向かって、今日も一緒に頑張ろう🎯",
 ];
 
+// 今日を基点に60日間（スクロール用）- モジュールロード時に固定
+const _stripBase = startOfDay(new Date());
+const ALL_STRIP_DAYS = Array.from({ length: 60 }, (_, i) =>
+  addDays(subDays(_stripBase, 30), i)
+);
+const STRIP_GAP = 4; // gap-1 = 4px
+
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // URLパラメータ ?date=YYYY-MM-DD から初期日付を取得
   const dateParam = searchParams.get("date");
   const [selectedDate, setSelectedDate] = useState<Date>(() =>
     dateParam ? startOfDay(new Date(dateParam)) : startOfDay(new Date())
@@ -43,39 +49,74 @@ function DashboardContent() {
     MOTIVATION_MESSAGES[Math.floor(Math.random() * MOTIVATION_MESSAGES.length)]
   );
 
-  const touchStartX = useRef<number | null>(null);
+  // スクロール制御用
+  const stripRef       = useRef<HTMLDivElement>(null);
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const programRef     = useRef(false); // プログラム的スクロール中は true
+  const fromScrollRef  = useRef(false); // スクロールで日付更新したとき true
+  const isInitialRef   = useRef(true);
 
   const fetchDashboard = useCallback(async (date: Date) => {
     const res = await fetch(`/api/dashboard?date=${format(date, "yyyy-MM-dd")}`);
-    if (res.ok) {
-      setData(await res.json());
-    }
+    if (res.ok) setData(await res.json());
   }, []);
 
   useEffect(() => {
     fetchDashboard(selectedDate);
   }, [selectedDate, fetchDashboard]);
 
-  // 週ストリップを selectedDate 中心に表示（常に today 固定ではなく）
-  const weekDays = Array.from({ length: 7 }, (_, i) =>
-    addDays(subDays(selectedDate, 3), i)
-  );
+  // ── スクロール関連 ───────────────────────────────────────────────────────────
+
+  const scrollToDate = useCallback((d: Date, smooth: boolean) => {
+    if (!stripRef.current) return;
+    const container = stripRef.current;
+    const dayW = (container.clientWidth - STRIP_GAP * 6) / 7;
+    const dayIdx = differenceInDays(d, ALL_STRIP_DAYS[0]);
+    const targetLeft = dayIdx * (dayW + STRIP_GAP) - container.clientWidth / 2 + dayW / 2;
+    programRef.current = true;
+    if (smooth) {
+      container.scrollTo({ left: Math.max(0, targetLeft), behavior: "smooth" });
+    } else {
+      container.scrollLeft = Math.max(0, targetLeft);
+    }
+    setTimeout(() => { programRef.current = false; }, smooth ? 500 : 50);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // selectedDate が変わったら strip をスクロール
+  useEffect(() => {
+    if (fromScrollRef.current) { fromScrollRef.current = false; return; }
+    scrollToDate(selectedDate, !isInitialRef.current);
+    isInitialRef.current = false;
+  }, [selectedDate, scrollToDate]);
+
+  function handleStripScroll() {
+    if (programRef.current) return;
+    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    scrollTimerRef.current = setTimeout(() => {
+      if (!stripRef.current) return;
+      const container = stripRef.current;
+      const dayW = (container.clientWidth - STRIP_GAP * 6) / 7;
+      const centerLeft = container.scrollLeft + container.clientWidth / 2;
+      const dayIdx = Math.round((centerLeft - dayW / 2) / (dayW + STRIP_GAP));
+      const clamped = Math.max(0, Math.min(ALL_STRIP_DAYS.length - 1, dayIdx));
+      fromScrollRef.current = true;
+      setSelectedDate(startOfDay(ALL_STRIP_DAYS[clamped]));
+    }, 150);
+  }
+
+  // ── カロリー計算 ─────────────────────────────────────────────────────────────
 
   const caloriePct = data
     ? Math.min(100, (data.today.totalCalories / data.goal.dailyCalorieTarget) * 100)
     : 0;
-
   const isOver = data ? data.today.totalCalories > data.goal.dailyCalorieTarget : false;
 
   return (
     <div className="flex flex-col min-h-svh">
-      {/* Side Menu */}
       <SideMenu open={sideMenuOpen} onClose={() => setSideMenuOpen(false)} />
       {sideMenuOpen && (
-        <div
-          className="fixed inset-0 bg-black/30 z-20"
-          onClick={() => setSideMenuOpen(false)}
-        />
+        <div className="fixed inset-0 bg-black/30 z-20" onClick={() => setSideMenuOpen(false)} />
       )}
 
       {/* Header */}
@@ -94,41 +135,32 @@ function DashboardContent() {
           <div className="w-8" />
         </div>
 
-        {/* Week Strip — selectedDate を中心に表示 */}
+        {/* Week Strip — 60日スクロール */}
         <div
-          className="flex justify-between gap-1 overflow-x-auto"
-          style={{ scrollbarWidth: "none" }}
-          onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
-          onTouchEnd={(e) => {
-            if (touchStartX.current === null) return;
-            const dx = e.changedTouches[0].clientX - touchStartX.current;
-            touchStartX.current = null;
-            if (Math.abs(dx) < 40) return;
-            if (dx < 0) setSelectedDate((d) => startOfDay(addDays(d, 1)));
-            else setSelectedDate((d) => startOfDay(subDays(d, 1)));
-          }}
+          ref={stripRef}
+          className="flex overflow-x-auto"
+          style={{ scrollbarWidth: "none", gap: `${STRIP_GAP}px` }}
+          onScroll={handleStripScroll}
         >
-          {weekDays.map((d) => {
-            const isSelected =
-              format(d, "yyyy-MM-dd") === format(selectedDate, "yyyy-MM-dd");
-            const isToday =
-              format(d, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+          {ALL_STRIP_DAYS.map((d) => {
+            const isSelected = format(d, "yyyy-MM-dd") === format(selectedDate, "yyyy-MM-dd");
+            const isToday    = format(d, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
             return (
               <button
                 key={d.toISOString()}
-                onClick={() => setSelectedDate(startOfDay(d))}
-                className={`flex flex-col items-center flex-1 py-1.5 rounded-xl text-xs transition-all ${
-                  isSelected
-                    ? "text-white"
-                    : isToday
-                    ? "text-pink-500"
-                    : "text-gray-400"
+                onClick={() => {
+                  setSelectedDate(startOfDay(d));
+                  scrollToDate(d, true);
+                }}
+                className={`flex flex-col items-center flex-shrink-0 py-1.5 rounded-xl text-xs transition-all ${
+                  isSelected ? "text-white" : isToday ? "text-pink-500" : "text-gray-400"
                 }`}
-                style={
-                  isSelected
+                style={{
+                  width: `calc((100% - ${STRIP_GAP * 6}px) / 7)`,
+                  ...(isSelected
                     ? { background: "linear-gradient(135deg, #f9a8d4, #f05a9e)" }
-                    : {}
-                }
+                    : {}),
+                }}
               >
                 <span>{format(d, "EEE", { locale: ja })}</span>
                 <span className={`font-bold ${isSelected ? "" : "mt-0.5"}`}>
@@ -190,7 +222,6 @@ function DashboardContent() {
               : `残り ${data?.today.remainingCalories.toLocaleString() ?? "---"} kcal`}
           </p>
 
-          {/* PFC mini */}
           {data && (
             <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-pink-50 text-center">
               {[
@@ -234,11 +265,9 @@ function DashboardContent() {
                   <span className="text-sm font-semibold text-gray-700">{card.label}</span>
                 </div>
                 {isBodyCard ? (
-                  <div>
-                    <p className={`text-lg font-bold ${bodyWeight !== null ? "text-pink-500" : "text-gray-300"}`}>
-                      {bodyWeight !== null ? `${bodyWeight} kg` : "未記録"}
-                    </p>
-                  </div>
+                  <p className={`text-lg font-bold ${bodyWeight !== null ? "text-pink-500" : "text-gray-300"}`}>
+                    {bodyWeight !== null ? `${bodyWeight} kg` : "未記録"}
+                  </p>
                 ) : eaten !== null ? (
                   <div>
                     <p className={`text-lg font-bold ${hasEntry ? "text-pink-500" : "text-gray-300"}`}>
@@ -255,7 +284,6 @@ function DashboardContent() {
             );
           })}
         </div>
-
       </main>
     </div>
   );
