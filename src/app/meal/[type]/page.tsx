@@ -42,13 +42,6 @@ type RawItem = {
   carbG: number | null;
 };
 
-type BlockState = {
-  text: string;
-  results: Food[];
-  searching: boolean;
-  selected: SelectedFood | null;
-};
-
 // ─── 定数 ─────────────────────────────────────────────────────────────────────
 
 const MEAL_LABELS: Record<string, { label: string; emoji: string }> = {
@@ -98,8 +91,10 @@ function foodToSelected(food: Food): SelectedFood {
 function rawToSelected(raw: RawItem): SelectedFood {
   const g = raw.quantityG || 100;
   return {
-    foodId: raw.foodId, foodType: raw.foodType as SelectedFood["foodType"],
-    foodName: raw.foodName, quantity: 1, servingIdx: 0,
+    foodId: raw.foodId,
+    foodType: raw.foodType as SelectedFood["foodType"],
+    foodName: raw.foodName,
+    quantity: 1, servingIdx: 0,
     servings: [{ serving_name: `${g}g`, serving_g: g }],
     kcalPer100g: raw.quantityG > 0 ? (raw.calories / raw.quantityG) * 100 : 0,
     proteinPer100g: raw.proteinG && raw.quantityG > 0 ? (raw.proteinG / raw.quantityG) * 100 : null,
@@ -168,18 +163,22 @@ function MealEntryContent() {
   const [inputTexts, setInputTexts] = useState<string[]>(Array(INPUT_COUNT).fill(""));
 
   // select フェーズ
-  const [blocks, setBlocks]     = useState<BlockState[]>([]);
-  const [activeIdx, setActiveIdx] = useState(0);
+  const [selectedFoods, setSelectedFoods] = useState<SelectedFood[]>([]);
+  const [pendingTexts, setPendingTexts]   = useState<string[]>([]);  // 未処理の入力キュー
+  const [addQuery, setAddQuery]           = useState("");
+  const [addResults, setAddResults]       = useState<Food[]>([]);
+  const [addSearching, setAddSearching]   = useState(false);
 
   // 共通
-  const [history, setHistory]   = useState<RawItem[]>([]);
+  const [history, setHistory]     = useState<RawItem[]>([]);
   const [hasExisting, setHasExisting] = useState(false);
   const [numpadTarget, setNumpadTarget] = useState<number | null>(null);
   const [numpadValue, setNumpadValue]   = useState("");
-  const [saving, setSaving]     = useState(false);
+  const [saving, setSaving]       = useState(false);
 
-  const inputRefs    = useRef<(HTMLInputElement | null)[]>(Array(INPUT_COUNT).fill(null));
-  const blockRefs    = useRef<(HTMLDivElement | null)[]>([]);
+  const inputRefs  = useRef<(HTMLInputElement | null)[]>(Array(INPUT_COUNT).fill(null));
+  const addInputRef = useRef<HTMLInputElement>(null);
+  const addAreaRef  = useRef<HTMLDivElement>(null);
   const saveButtonRef = useRef<HTMLButtonElement>(null);
 
   // ── 初期データ読み込み ─────────────────────────────────────────────────────
@@ -193,16 +192,8 @@ function MealEntryContent() {
         (l: { mealType: string }) => l.mealType === mealType
       );
       if (log?.items?.length) {
-        const newBlocks: BlockState[] = (log.items as RawItem[])
-          .slice(0, INPUT_COUNT)
-          .map((item) => ({
-            text: item.foodName,
-            results: [],
-            searching: false,
-            selected: rawToSelected(item),
-          }));
-        setBlocks(newBlocks);
-        setActiveIdx(newBlocks.length); // 全選択済み → 末尾を指す
+        setSelectedFoods((log.items as RawItem[]).map(rawToSelected));
+        setAddQuery("");
         setHasExisting(true);
         setPhase("select");
       }
@@ -210,94 +201,90 @@ function MealEntryContent() {
     });
   }, [date, mealType]);
 
-  // ── 検索（選択フェーズ・activeIdx 変化時に自動実行）────────────────────────
+  // ── 検索（select フェーズ・addQuery 変化時）────────────────────────────────
 
   useEffect(() => {
     if (phase !== "select") return;
-    const idx = activeIdx;
-    const q   = blocks[idx]?.text?.trim() ?? "";
-    if (!q) return;
+    const q = addQuery.trim();
+    if (!q) { setAddResults([]); setAddSearching(false); return; }
 
+    setAddSearching(true);
     let cancelled = false;
-    setBlocks((prev) => prev.map((b, i) => i === idx ? { ...b, searching: true } : b));
-
     const timer = setTimeout(async () => {
       if (cancelled) return;
       const res = await fetch(`/api/foods?q=${encodeURIComponent(q)}`);
-      if (!cancelled && res.ok) {
-        const data = await res.json();
-        setBlocks((prev) => prev.map((b, i) =>
-          i === idx ? { ...b, results: data.foods, searching: false } : b
-        ));
-      } else if (!cancelled) {
-        setBlocks((prev) => prev.map((b, i) => i === idx ? { ...b, searching: false } : b));
-      }
-    }, 200);
-
+      if (!cancelled && res.ok) setAddResults((await res.json()).foods);
+      if (!cancelled) setAddSearching(false);
+    }, 300);
     return () => { cancelled = true; clearTimeout(timer); };
-  // blocks[idx].text は select フェーズ中に変わらないので deps から除外
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, activeIdx]);
+  }, [phase, addQuery]);
 
-  // ── input フェーズ → select フェーズ ────────────────────────────────────────
+  // ── input → select 遷移 ─────────────────────────────────────────────────────
 
   function handleStartSelect() {
     const nonEmpty = inputTexts.map((t) => t.trim()).filter(Boolean);
     if (nonEmpty.length === 0) return;
-    setBlocks(nonEmpty.map((text) => ({ text, results: [], searching: false, selected: null })));
-    setActiveIdx(0);
+    setSelectedFoods([]);
+    setAddQuery(nonEmpty[0]);
+    setAddResults([]);
+    setPendingTexts(nonEmpty.slice(1));
     setPhase("select");
+    setTimeout(() => addInputRef.current?.focus(), 150);
   }
 
-  // ── select フェーズ内アクション ─────────────────────────────────────────────
+  // ── 食品選択後の進行 ────────────────────────────────────────────────────────
 
-  function advanceTo(nextIdx: number) {
-    if (nextIdx >= blocks.length) return;
-    setActiveIdx(nextIdx);
+  function advanceAfterSelect() {
+    if (pendingTexts.length > 0) {
+      const [next, ...rest] = pendingTexts;
+      setAddQuery(next);
+      setAddResults([]);
+      setPendingTexts(rest);
+    } else {
+      setAddQuery("");
+      setAddResults([]);
+      setTimeout(() => addInputRef.current?.focus(), 100);
+    }
     setTimeout(() => {
-      blockRefs.current[nextIdx]?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      addAreaRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     }, 80);
   }
 
-  function selectFood(i: number, food: Food) {
-    setBlocks((prev) => prev.map((b, idx) =>
-      idx === i ? { ...b, selected: foodToSelected(food), searching: false } : b
-    ));
-    advanceTo(i + 1);
+  function handleSelectFood(food: Food) {
+    setSelectedFoods((prev) => [...prev, foodToSelected(food)]);
+    advanceAfterSelect();
   }
 
-  function selectHistory(i: number, h: RawItem) {
-    setBlocks((prev) => prev.map((b, idx) =>
-      idx === i ? { ...b, selected: rawToSelected(h), searching: false } : b
-    ));
-    advanceTo(i + 1);
+  function handleSelectHistory(h: RawItem) {
+    setSelectedFoods((prev) => [...prev, rawToSelected(h)]);
+    advanceAfterSelect();
   }
 
-  function clearFood(i: number) {
-    setBlocks((prev) => prev.map((b, idx) =>
-      idx === i ? { ...b, selected: null } : b
-    ));
-    setActiveIdx(i);
+  // ── 削除（検索を発火しない）──────────────────────────────────────────────────
+
+  function deleteFood(idx: number) {
+    setSelectedFoods((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  function cycleServing(i: number) {
-    setBlocks((prev) => prev.map((b, idx) => {
-      if (idx !== i || !b.selected) return b;
-      const sf = b.selected;
-      return { ...b, selected: { ...sf, servingIdx: (sf.servingIdx + 1) % sf.servings.length } };
+  // ── 数量操作 ───────────────────────────────────────────────────────────────
+
+  function cycleServing(idx: number) {
+    setSelectedFoods((prev) => prev.map((sf, i) => {
+      if (i !== idx) return sf;
+      return { ...sf, servingIdx: (sf.servingIdx + 1) % sf.servings.length };
     }));
   }
 
-  function openNumpad(i: number) {
-    setNumpadTarget(i);
+  function openNumpad(idx: number) {
+    setNumpadTarget(idx);
     setNumpadValue("");
   }
 
   function confirmNumpad() {
     if (numpadTarget === null) return;
     const qty = Math.max(1, parseInt(numpadValue, 10) || 1);
-    setBlocks((prev) => prev.map((b, i) =>
-      i === numpadTarget && b.selected ? { ...b, selected: { ...b.selected, quantity: qty } } : b
+    setSelectedFoods((prev) => prev.map((sf, i) =>
+      i === numpadTarget ? { ...sf, quantity: qty } : sf
     ));
     setNumpadTarget(null);
     setNumpadValue("");
@@ -305,7 +292,6 @@ function MealEntryContent() {
 
   // ── 保存 ───────────────────────────────────────────────────────────────────
 
-  const selectedFoods = blocks.map((b) => b.selected).filter((s): s is SelectedFood => s !== null);
   const totalCalories = selectedFoods.reduce((s, sf) => s + sfCalories(sf), 0);
 
   async function handleSave() {
@@ -333,16 +319,15 @@ function MealEntryContent() {
     }
   }
 
-  // ── 検索結果フィルタ（アクティブブロック用）────────────────────────────────
+  // ── 検索結果フィルタ ────────────────────────────────────────────────────────
 
-  const activeText = phase === "select" ? (blocks[activeIdx]?.text ?? "").toLowerCase() : "";
-  const historyMatches = activeText
-    ? history.filter((h) => h.foodName.toLowerCase().includes(activeText)).slice(0, 3)
+  const queryLower = addQuery.toLowerCase();
+  const historyMatches = addQuery.trim()
+    ? history.filter((h) => h.foodName.toLowerCase().includes(queryLower)).slice(0, 3)
     : [];
   const histMatchIds  = new Set(historyMatches.map((h) => h.foodId));
-  const activeResults = (blocks[activeIdx]?.results ?? [])
-    .filter((f) => !histMatchIds.has(f.id))
-    .slice(0, 8);
+  const filteredResults = addResults.filter((f) => !histMatchIds.has(f.id)).slice(0, 8);
+  const showDropdown = addSearching || historyMatches.length > 0 || filteredResults.length > 0;
 
   // ── レンダリング ────────────────────────────────────────────────────────────
 
@@ -371,6 +356,7 @@ function MealEntryContent() {
                     ref={(el) => { inputRefs.current[i] = el; }}
                     type="text"
                     inputMode="text"
+                    autoComplete="off"
                     className="input-field flex-1 py-2 text-sm"
                     placeholder={i === 0 ? "例：白米、鶏むね肉" : "食品名を入力"}
                     value={text}
@@ -380,10 +366,15 @@ function MealEntryContent() {
                       setInputTexts(next);
                     }}
                     onKeyDown={(e) => {
-                      if (e.key !== "Enter") return;
+                      // IME 変換中の Enter は無視
+                      if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
                       e.preventDefault();
                       if (i < INPUT_COUNT - 1) {
-                        inputRefs.current[i + 1]?.focus();
+                        // 次の入力欄を明示的に空にしてからフォーカス移動
+                        const next = [...inputTexts];
+                        next[i + 1] = "";
+                        setInputTexts(next);
+                        requestAnimationFrame(() => inputRefs.current[i + 1]?.focus());
                       } else if (inputTexts.some((t) => t.trim())) {
                         handleStartSelect();
                       }
@@ -429,165 +420,133 @@ function MealEntryContent() {
           </header>
 
           <div className="flex-1 px-4 py-3 space-y-2 pb-36">
-            {blocks.map((block, i) => {
-              const isActive = activeIdx === i && !block.selected;
-              const showResults = isActive &&
-                (block.searching || historyMatches.length > 0 || activeResults.length > 0);
 
+            {/* ── 選択済み食品一覧 ────────────────────────────────────────── */}
+            {selectedFoods.map((sf, idx) => {
+              const { serving_name, serving_g } = sfServing(sf);
+              const p = sfProtein(sf); const f = sfFat(sf); const c = sfCarb(sf);
               return (
-                <div
-                  key={i}
-                  ref={(el) => { blockRefs.current[i] = el; }}
-                  className={`card transition-all ${
-                    isActive ? "border-2 border-pink-300" : "border border-pink-50"
-                  }`}
-                >
-                  {/* ブロックヘッダー */}
-                  <div
-                    className="flex items-center gap-2 mb-1.5 cursor-pointer"
-                    onClick={() => { if (!block.selected) setActiveIdx(i); }}
-                  >
-                    <span className={`text-xs w-5 text-right flex-shrink-0 font-bold ${
-                      block.selected ? "text-pink-400" : isActive ? "text-pink-500" : "text-gray-300"
-                    }`}>
-                      {i + 1}
-                    </span>
-                    <p className={`text-sm font-medium flex-1 ${
-                      block.selected ? "text-gray-700" : isActive ? "text-gray-800" : "text-gray-400"
-                    }`}>
-                      {block.text}
+                <div key={idx} className="card">
+                  <div className="flex items-start justify-between mb-2">
+                    <p className="text-sm font-semibold text-gray-700 flex-1 mr-2 leading-tight">
+                      {sf.foodName}
                     </p>
-                    {block.selected && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); clearFood(i); }}
-                        className="text-gray-300 hover:text-red-400 px-1 flex-shrink-0"
-                      >
-                        ✕
-                      </button>
-                    )}
+                    {/* ✕ : state から削除するだけ（検索は発火しない） */}
+                    <button
+                      onClick={() => deleteFood(idx)}
+                      className="text-gray-300 hover:text-red-400 flex-shrink-0 text-lg leading-none px-0.5"
+                    >
+                      ✕
+                    </button>
                   </div>
-
-                  {/* 選択済み：個数コントロール */}
-                  {block.selected && (() => {
-                    const sf = block.selected;
-                    const { serving_name, serving_g } = sfServing(sf);
-                    const p = sfProtein(sf); const f = sfFat(sf); const c = sfCarb(sf);
-                    return (
-                      <div className="ml-7">
-                        <div className="flex items-center gap-2">
-                          {sf.servings.length > 1 ? (
-                            <button
-                              onClick={() => cycleServing(i)}
-                              className="flex-shrink-0 bg-pink-50 text-pink-500 text-xs px-2.5 py-1.5 rounded-lg font-medium whitespace-nowrap"
-                            >
-                              {serving_name} ▾
-                            </button>
-                          ) : (
-                            <span className="flex-shrink-0 bg-gray-50 text-gray-500 text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap">
-                              {serving_name}
-                            </span>
-                          )}
-                          <button
-                            onClick={() => openNumpad(i)}
-                            className="w-14 h-9 bg-white border-2 border-pink-200 rounded-xl text-center text-base font-bold text-gray-700 flex-shrink-0 active:border-pink-400 active:bg-pink-50"
-                          >
-                            {sf.quantity}
-                          </button>
-                          <span className="text-xs text-gray-400 flex-shrink-0">× {serving_g}g</span>
-                          <span className="ml-auto text-sm font-bold text-pink-500 flex-shrink-0">
-                            {sfCalories(sf)} kcal
-                          </span>
-                        </div>
-                        {(p != null || f != null || c != null) && (
-                          <div className="flex gap-3 mt-1 text-xs text-gray-400">
-                            {p != null && <span>P: {p}g</span>}
-                            {f != null && <span>F: {f}g</span>}
-                            {c != null && <span>C: {c}g</span>}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {/* アクティブ：検索結果 */}
-                  {isActive && (
-                    <div className="ml-7 mt-2">
-                      {block.searching && !showResults && (
-                        <div className="text-center py-4 text-sm text-gray-400">検索中...</div>
-                      )}
-
-                      {showResults && (
-                        <div className="border border-pink-100 rounded-xl overflow-hidden">
-                          {block.searching && (
-                            <div className="px-4 py-2 text-xs text-gray-400 text-center border-b border-pink-50">
-                              検索中...
-                            </div>
-                          )}
-
-                          {historyMatches.map((h) => (
-                            <button
-                              key={`hist-${h.foodId}`}
-                              onClick={() => selectHistory(i, h)}
-                              className="w-full px-4 py-3 text-left flex justify-between items-center border-b border-pink-50 last:border-0 hover:bg-pink-50 active:bg-pink-100"
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-xs text-pink-400 flex-shrink-0 bg-pink-50 px-1.5 py-0.5 rounded">履歴</span>
-                                <p className="text-sm font-medium text-gray-700 truncate">{h.foodName}</p>
-                              </div>
-                              <p className="text-sm font-bold text-pink-500 ml-3 flex-shrink-0">{h.calories} kcal</p>
-                            </button>
-                          ))}
-
-                          {activeResults.map((food) => (
-                            <button
-                              key={`${food.type}-${food.id}`}
-                              onClick={() => selectFood(i, food)}
-                              className="w-full px-4 py-3 text-left border-b border-pink-50 last:border-0 hover:bg-pink-50 active:bg-pink-100"
-                            >
-                              <div className="flex justify-between items-start">
-                                <div className="min-w-0 flex-1 mr-3">
-                                  <p className="text-sm font-medium text-gray-700">{food.name}</p>
-                                  {food.category && (
-                                    <p className="text-xs text-gray-400">{food.category}</p>
-                                  )}
-                                </div>
-                                <div className="text-right flex-shrink-0">
-                                  <p className="text-sm font-bold text-pink-500">{food.caloriesKcal} kcal</p>
-                                  <p className="text-xs text-gray-400">
-                                    {food.servings[0] ? `/${food.servings[0].serving_name}` : "/100g"}
-                                  </p>
-                                </div>
-                              </div>
-                            </button>
-                          ))}
-
-                          {!block.searching && historyMatches.length === 0 && activeResults.length === 0 && (
-                            <div className="px-4 py-3 text-sm text-gray-400 text-center">
-                              見つかりませんでした
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* スキップ */}
-                      {i < blocks.length - 1 && (
-                        <button
-                          onClick={() => advanceTo(i + 1)}
-                          className="mt-2 text-xs text-gray-400 w-full text-right pr-1"
-                        >
-                          スキップ →
-                        </button>
-                      )}
+                  <div className="flex items-center gap-2">
+                    {sf.servings.length > 1 ? (
+                      <button
+                        onClick={() => cycleServing(idx)}
+                        className="flex-shrink-0 bg-pink-50 text-pink-500 text-xs px-2.5 py-1.5 rounded-lg font-medium whitespace-nowrap"
+                      >
+                        {serving_name} ▾
+                      </button>
+                    ) : (
+                      <span className="flex-shrink-0 bg-gray-50 text-gray-500 text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap">
+                        {serving_name}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => openNumpad(idx)}
+                      className="w-14 h-9 bg-white border-2 border-pink-200 rounded-xl text-center text-base font-bold text-gray-700 flex-shrink-0 active:border-pink-400 active:bg-pink-50"
+                    >
+                      {sf.quantity}
+                    </button>
+                    <span className="text-xs text-gray-400 flex-shrink-0">× {serving_g}g</span>
+                    <span className="ml-auto text-sm font-bold text-pink-500 flex-shrink-0">
+                      {sfCalories(sf)} kcal
+                    </span>
+                  </div>
+                  {(p != null || f != null || c != null) && (
+                    <div className="flex gap-3 mt-1 text-xs text-gray-400">
+                      {p != null && <span>P: {p}g</span>}
+                      {f != null && <span>F: {f}g</span>}
+                      {c != null && <span>C: {c}g</span>}
                     </div>
-                  )}
-
-                  {/* 未選択・非アクティブ */}
-                  {!block.selected && !isActive && (
-                    <p className="ml-7 text-xs text-gray-400">タップして選択</p>
                   )}
                 </div>
               );
             })}
+
+            {/* ── 追加入力エリア ────────────────────────────────────────────── */}
+            <div ref={addAreaRef} className="card">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+                <input
+                  ref={addInputRef}
+                  type="text"
+                  inputMode="text"
+                  autoComplete="off"
+                  className="input-field pl-9 py-2.5"
+                  placeholder="食品名を検索して追加"
+                  value={addQuery}
+                  onChange={(e) => {
+                    setAddQuery(e.target.value);
+                    setAddResults([]); // 旧結果をクリア
+                  }}
+                />
+              </div>
+
+              {/* 検索結果ドロップダウン */}
+              {showDropdown && (
+                <div className="mt-2 border border-pink-100 rounded-xl overflow-hidden">
+                  {addSearching && (
+                    <div className="px-4 py-3 text-sm text-gray-400 text-center">検索中...</div>
+                  )}
+
+                  {historyMatches.map((h) => (
+                    <button
+                      key={`hist-${h.foodId}`}
+                      onClick={() => handleSelectHistory(h)}
+                      className="w-full px-4 py-3 text-left flex justify-between items-center border-b border-pink-50 last:border-0 hover:bg-pink-50 active:bg-pink-100"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-xs text-pink-400 flex-shrink-0 bg-pink-50 px-1.5 py-0.5 rounded">
+                          履歴
+                        </span>
+                        <p className="text-sm font-medium text-gray-700 truncate">{h.foodName}</p>
+                      </div>
+                      <p className="text-sm font-bold text-pink-500 ml-3 flex-shrink-0">{h.calories} kcal</p>
+                    </button>
+                  ))}
+
+                  {filteredResults.map((food) => (
+                    <button
+                      key={`${food.type}-${food.id}`}
+                      onClick={() => handleSelectFood(food)}
+                      className="w-full px-4 py-3 text-left border-b border-pink-50 last:border-0 hover:bg-pink-50 active:bg-pink-100"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="min-w-0 flex-1 mr-3">
+                          <p className="text-sm font-medium text-gray-700">{food.name}</p>
+                          {food.category && (
+                            <p className="text-xs text-gray-400">{food.category}</p>
+                          )}
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-sm font-bold text-pink-500">{food.caloriesKcal} kcal</p>
+                          <p className="text-xs text-gray-400">
+                            {food.servings[0] ? `/${food.servings[0].serving_name}` : "/100g"}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+
+                  {!addSearching && historyMatches.length === 0 && filteredResults.length === 0 && addQuery.trim() && (
+                    <div className="px-4 py-3 text-sm text-gray-400 text-center">
+                      見つかりませんでした
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Footer */}
@@ -612,7 +571,7 @@ function MealEntryContent() {
       {/* Numpad */}
       {numpadTarget !== null && (
         <Numpad
-          label={blocks[numpadTarget]?.selected?.foodName ?? ""}
+          label={selectedFoods[numpadTarget]?.foodName ?? ""}
           value={numpadValue}
           onValue={setNumpadValue}
           onConfirm={confirmNumpad}
