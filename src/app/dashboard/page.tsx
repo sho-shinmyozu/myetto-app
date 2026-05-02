@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { format, addDays, subDays, startOfDay } from "date-fns";
@@ -42,6 +42,8 @@ function DashboardContent() {
   const [message] = useState(
     MOTIVATION_MESSAGES[Math.floor(Math.random() * MOTIVATION_MESSAGES.length)]
   );
+
+  const touchStartX = useRef<number | null>(null);
 
   const fetchDashboard = useCallback(async (date: Date) => {
     const res = await fetch(`/api/dashboard?date=${format(date, "yyyy-MM-dd")}`);
@@ -93,7 +95,19 @@ function DashboardContent() {
         </div>
 
         {/* Week Strip — selectedDate を中心に表示 */}
-        <div className="flex justify-between gap-1">
+        <div
+          className="flex justify-between gap-1 overflow-x-auto"
+          style={{ scrollbarWidth: "none" }}
+          onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
+          onTouchEnd={(e) => {
+            if (touchStartX.current === null) return;
+            const dx = e.changedTouches[0].clientX - touchStartX.current;
+            touchStartX.current = null;
+            if (Math.abs(dx) < 40) return;
+            if (dx < 0) setSelectedDate((d) => startOfDay(addDays(d, 1)));
+            else setSelectedDate((d) => startOfDay(subDays(d, 1)));
+          }}
+        >
           {weekDays.map((d) => {
             const isSelected =
               format(d, "yyyy-MM-dd") === format(selectedDate, "yyyy-MM-dd");
